@@ -1,7 +1,34 @@
+# Python
 __pycache__/
-*.pyc
-.DS_Store
-.env
-venv/
+*.py[cod]
+*.so
+*.egg-info/
+*.pyo
+
+# SQLite
+*.db
+*.sqlite3
 data.db
+
+# Environments
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Packages
+venv/
+ENV/
+env/
+.venv/
+
+# PyInstaller
+build/
+dist/
+
+# Uploads, temporary files
+uploads/
 instance/
+*.log
