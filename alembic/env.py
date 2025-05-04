@@ -1,10 +1,14 @@
 from logging.config import fileConfig
 import os
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 from alembic import context
-from models import Base  # Подключаем Base из models.py
-target_metadata = Base.metadata
+from dotenv import load_dotenv
 
+# Загружаем переменные окружения из .env
+load_dotenv()
+
+# Импортируем базу и engine из models
+from models import Base, engine
 
 # Alembic config
 config = context.config
@@ -18,7 +22,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Миграции в offline-режиме."""
-    url = config.get_main_option("sqlalchemy.url")
+    url = os.getenv("DATABASE_URL")  # напрямую из .env
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -31,12 +35,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Миграции в online-режиме."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-    with connectable.connect() as connection:
+    with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
