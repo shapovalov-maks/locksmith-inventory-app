@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
-from sqlalchemy.orm import relationship, declarative_base
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship, declarative_base
 
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = scoped_session(sessionmaker(bind=engine))
 Base = declarative_base()
 
 
