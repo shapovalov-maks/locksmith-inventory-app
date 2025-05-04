@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamsoft Barcode Scanner - Hello World</title>
+    <script src="https://cdn.jsdelivr.net/npm/dynamsoft-barcode-reader-bundle@10.5.3000/dist/dbr.bundle.js"></script>
+  </head>
+  <body>
+    <h1>Dynamsoft Barcode Scanner</h1>
+    <script>
+      const barcodeScanner = new Dynamsoft.BarcodeScanner({
+        license: "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzOTc5ODUxLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzOTc5ODUxIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMjAyODM2OTIzNn0="
+      });
+      (async () => {
+        const result = await barcodeScanner.launch();
+        alert(result.barcodeResults[0].text);
+      })();
+    </script>
+  </body>
+</html>

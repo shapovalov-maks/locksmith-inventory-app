@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, after_this_request
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, or_
@@ -25,6 +25,16 @@ Base = declarative_base()
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# ============================
+# Add proper MIME type for .wasm
+# ============================
+
+@app.after_request
+def set_headers(response):
+    if request.path.endswith('.wasm'):
+        response.headers['Content-Type'] = 'application/wasm'
+    return response
 
 # ============================
 # Models
@@ -164,11 +174,17 @@ def delete_key(key_id):
         db.commit()
     return redirect(url_for('index'))
 
-# Register blueprint from routes.py
+# ============================
+# Register blueprint
+# ============================
+
 from routes import bp as known_codes_bp
 app.register_blueprint(known_codes_bp)
 
-# DB Init (development only)
+# ============================
+# DB Init (only for local)
+# ============================
+
 if __name__ == '__main__':
     Base.metadata.create_all(bind=engine)
     app.run(debug=True)
