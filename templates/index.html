@@ -1,124 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>🔑 Locksmith Inventory</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        form { max-width: 400px; margin: auto; }
-        input, button, label { width: 100%; margin-top: 10px; padding: 8px; box-sizing: border-box; }
-        button[type="button"] { width: auto; display: inline-block; margin-left: 5px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 30px; overflow-x: auto; display: block; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; white-space: nowrap; }
-        th { background-color: #f2f2f2; }
-        .low-stock { color: red; font-weight: bold; }
-        #reader, #quick_reader { width: 100%; max-width: 300px; margin: 10px auto; }
-        mark { background-color: yellow; font-weight: bold; }
-    </style>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🔑 Locksmith Inventory</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    form {
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+
+    label {
+      margin-top: 10px;
+      display: block;
+      font-weight: bold;
+    }
+
+    button[type="submit"] {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 40px;
+      background: white;
+      overflow-x: auto;
+      display: block;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    .low-stock {
+      color: red;
+      font-weight: bold;
+    }
+
+    .search-bar {
+      max-width: 400px;
+      margin: 20px auto;
+      display: flex;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 10px;
+      font-size: 16px;
+    }
+
+    .search-bar button {
+      padding: 10px;
+      background: #333;
+      color: white;
+      border: none;
+    }
+
+    mark {
+      background-color: yellow;
+    }
+  </style>
 </head>
 <body>
-    <h2 style="text-align: center;">🔑 Locksmith Inventory</h2>
+  <h2>🔐 Locksmith Inventory</h2>
 
-    <form action="/add" method="post">
-        <label>FCC ID:</label>
-        <div style="display: flex; align-items: center;">
-            <input type="text" id="fcc_id" name="fcc_id" required>
-            <button type="button" onclick="startScanner()">📷</button>
-        </div>
-        <div id="reader"></div>
+  <form method="post" action="/add">
+    <label for="fcc_id">FCC ID:</label>
+    <input type="text" name="fcc_id" id="fcc_id" placeholder="If applicable">
 
-        <label>Make:</label>
-        <input type="text" name="make" required>
+    <label for="barcode">Barcode:</label>
+    <input type="text" name="barcode" id="barcode" placeholder="Scan or enter barcode">
 
-        <label>Model:</label>
-        <input type="text" name="model" required>
+    <label for="type">Type:</label>
+    <select name="type" id="type">
+      <option value="fcc">FCC</option>
+      <option value="universal">Universal</option>
+      <option value="chip">Chip</option>
+      <option value="blade">Blade</option>
+      <option value="mechanical">Mechanical</option>
+      <option value="other">Other</option>
+    </select>
 
-        <label>Year:</label>
-        <input type="number" name="year" required>
+    <label for="make">Make:</label>
+    <input type="text" name="make" id="make" required>
 
-        <label>Box Slot:</label>
-        <input type="text" name="box_slot">
+    <label for="model">Model:</label>
+    <input type="text" name="model" id="model" required>
 
-        <label>Quantity:</label>
-        <input type="number" name="quantity" min="0">
+    <label for="year">Year:</label>
+    <input type="number" name="year" id="year">
 
-        <label>Available:</label>
-        <input type="checkbox" name="available" checked>
+    <label for="box_slot">Box Slot:</label>
+    <input type="text" name="box_slot" id="box_slot">
 
-        <label>Comments:</label>
-        <input type="text" name="comments">
+    <label for="quantity">Quantity:</label>
+    <input type="number" name="quantity" id="quantity" value="1" min="0">
 
-        <button type="submit">Add New Key</button>
+    <label><input type="checkbox" name="available" checked> Available</label>
+
+    <label for="comments">Comments:</label>
+    <input type="text" name="comments" id="comments">
+
+    <button type="submit">➕ Add Key</button>
+  </form>
+
+  <div class="search-bar">
+    <form method="get" action="/">
+      <input type="text" name="search" placeholder="Search..." value="{{ search }}">
+      <button type="submit">🔍</button>
     </form>
+  </div>
 
-    <h3 style="margin-top: 40px;">All Keys</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>FCC ID</th>
-                <th>Make</th>
-                <th>Model</th>
-                <th>Year</th>
-                <th>Box Slot</th>
-                <th>Quantity</th>
-                <th>Available</th>
-                <th>Comments</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for key in keys %}
-            <tr>
-                <td>{{ key.fcc_id }}</td>
-                <td>{{ key.make }}</td>
-                <td>{{ key.model }}</td>
-                <td>{{ key.year }}</td>
-                <td>{{ key.box_slot or '' }}</td>
-                <td>
-                    {{ key.quantity }}
-                    {% if key.quantity <= 1 %}<span class="low-stock"> — Restock needed!</span>{% endif %}
-                </td>
-                <td>{% if key.available %}✅{% else %}❌{% endif %}</td>
-                <td>{{ key.comments or '' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <table>
+    <thead>
+      <tr>
+        <th>FCC ID</th>
+        <th>Barcode</th>
+        <th>Type</th>
+        <th>Make</th>
+        <th>Model</th>
+        <th>Year</th>
+        <th>Box Slot</th>
+        <th>Qty</th>
+        <th>Available</th>
+        <th>Comments</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key in keys %}
+      <tr>
+        <td>
+  {% if key.fcc_id %}
+    <a href="{{ url_for('models_for_fcc', fcc_id=key.fcc_id) }}">{{ key.fcc_id }}</a>
+  {% else %}
+    —
+  {% endif %}
+</td>
 
-    <script>
-    let scannerRunning = false;
-    let html5QrCode;
-
-    function startScanner() {
-        const qrRegion = document.getElementById("reader");
-        if (!scannerRunning) {
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: 250 },
-                qrCodeMessage => {
-                    document.getElementById("fcc_id").value = qrCodeMessage;
-                    stopScanner();
-                }
-            ).then(() => { scannerRunning = true; }).catch(err => {
-                alert("Camera error: " + err);
-            });
-        } else {
-            stopScanner();
-        }
-    }
-
-    function stopScanner() {
-        if (html5QrCode && scannerRunning) {
-            html5QrCode.stop().then(() => {
-                html5QrCode.clear();
-                scannerRunning = false;
-            }).catch(err => {
-                console.error("Stop error", err);
-            });
-        }
-    }
-    </script>
+        <td>{{ key.barcode }}</td>
+        <td>{{ key.type }}</td>
+        <td>{{ key.make }}</td>
+        <td>{{ key.model }}</td>
+        <td>{{ key.year or '' }}</td>
+        <td>{{ key.box_slot or '' }}</td>
+        <td>
+          {{ key.quantity }}
+          {% if key.quantity <= 1 %}<span class="low-stock"> — Restock needed</span>{% endif %}
+        </td>
+        <td>{% if key.available %}✅{% else %}❌{% endif %}</td>
+        <td>{{ key.comments or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </body>
 </html>

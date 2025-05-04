@@ -38,13 +38,16 @@ class User(Base, UserMixin):
     session_token = Column(String)
     keys = relationship("Key", back_populates="user")
 
+
 class Key(Base):
     __tablename__ = 'keys'
     id = Column(Integer, primary_key=True)
-    fcc_id = Column(String, nullable=False)
-    make = Column(String, nullable=False)
-    model = Column(String, nullable=False)
-    year = Column(Integer, nullable=False)
+    fcc_id = Column(String)
+    barcode = Column(String)
+    type = Column(String, default='fcc')
+    make = Column(String)
+    model = Column(String)
+    year = Column(Integer)
     box_slot = Column(String)
     quantity = Column(Integer, default=0)
     available = Column(Boolean, default=True)
@@ -113,14 +116,16 @@ def logout():
 def add_key():
     db = SessionLocal()
     new_key = Key(
-        fcc_id=request.form['fcc_id'],
-        make=request.form['make'],
-        model=request.form['model'],
-        year=int(request.form['year']),
-        box_slot=request.form.get('box_slot', ''),
+        fcc_id=request.form.get('fcc_id'),
+        barcode=request.form.get('barcode'),
+        type=request.form.get('type', 'fcc'),
+        make=request.form.get('make') or None,
+        model=request.form.get('model') or None,
+        year=int(request.form.get('year')) if request.form.get('year') else None,
+        box_slot=request.form.get('box_slot'),
         quantity=int(request.form.get('quantity', 0)),
         available='available' in request.form,
-        comments=request.form.get('comments', ''),
+        comments=request.form.get('comments'),
         user_id=current_user.id
     )
     db.add(new_key)
