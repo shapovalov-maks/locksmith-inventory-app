@@ -25,7 +25,7 @@ class User(Base):
 class Key(Base):
     __tablename__ = 'keys'
     id = Column(Integer, primary_key=True)
-    fcc_id = Column(String)
+    fcc_id = Column(String, nullable=True)
     barcode = Column(String)
     type = Column(String, default='fcc')
     make = Column(String)
