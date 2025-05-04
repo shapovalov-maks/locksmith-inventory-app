@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, create_engi
 from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL")  # переменная окружения Render
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
