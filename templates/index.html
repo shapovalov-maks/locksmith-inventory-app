@@ -1,201 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>🔑 Locksmith Inventory</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            background-color: #f9f9f9;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🔑 Locksmith Inventory</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 0;
+    }
 
-        h2 {
-            text-align: center;
-            padding: 20px;
-            font-size: 24px;
-        }
+    h2 {
+      text-align: center;
+      padding: 20px;
+      font-size: 24px;
+    }
 
-        form {
-            background-color: #fff;
-            max-width: 500px;
-            margin: auto;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        }
+    form {
+      background-color: #fff;
+      max-width: 500px;
+      margin: auto;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
 
-        label {
-            font-weight: 600;
-            margin-top: 12px;
-            display: block;
-        }
+    label {
+      font-weight: 600;
+      margin-top: 12px;
+      display: block;
+    }
 
-        input, select {
-            width: 100%;
-            padding: 10px;
-            margin-top: 6px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
 
-        button {
-            background-color: #007bff;
-            color: #fff;
-            border: none;
-            padding: 12px;
-            margin-top: 20px;
-            width: 100%;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-        }
+    button {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      padding: 12px;
+      margin-top: 20px;
+      width: 100%;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
+    button:hover {
+      background-color: #0056b3;
+    }
 
-        .scanner-buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-        }
+    .scanner-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
 
-        #reader {
-            width: 100%;
-            max-width: 360px;
-            margin: 20px auto;
-            display: none;
-        }
+    #reader, #quagga-reader {
+      width: 100%;
+      max-width: 360px;
+      margin: 20px auto;
+      display: none;
+    }
 
-        @media screen and (max-width: 480px) {
-            form {
-                margin: 10px;
-                padding: 15px;
-            }
+    @media screen and (max-width: 480px) {
+      form {
+        margin: 10px;
+        padding: 15px;
+      }
 
-            h2 {
-                font-size: 20px;
-            }
-        }
-    </style>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+      h2 {
+        font-size: 20px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h2>🔑 Locksmith Inventory</h2>
+  <h2>🔑 Locksmith Inventory</h2>
 
-    <form action="/add" method="post">
-        <label for="barcode">Barcode:</label>
-        <div style="display: flex; gap: 8px;">
-            <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
-            <button type="button" onclick="toggleScanner()">Scan</button>
-        </div>
+  <form action="/add" method="post">
+    <label for="barcode">Barcode:</label>
+    <div style="display: flex; gap: 8px;">
+      <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
+      <button type="button" onclick="toggleScanner()">Scan</button>
+    </div>
 
-        <div class="scanner-buttons">
-            <button type="button" onclick="setMode('qr')">Mode: QR</button>
-            <button type="button" onclick="setMode('barcode')">Mode: Barcode</button>
-        </div>
+    <div class="scanner-buttons">
+      <button type="button" onclick="setScanner('qr')">QR</button>
+      <button type="button" onclick="setScanner('barcode')">Barcode</button>
+    </div>
 
-        <div id="reader"></div>
+    <div id="reader"></div>
+    <div id="quagga-reader"></div>
 
-        <label for="type">Type:</label>
-        <select name="type" id="type">
-            <option value="fcc">FCC</option>
-            <option value="universal">Universal</option>
-            <option value="chip">Chip</option>
-            <option value="blade">Blade</option>
-        </select>
+    <label for="type">Type:</label>
+    <select name="type" id="type">
+      <option value="fcc">FCC</option>
+      <option value="universal">Universal</option>
+      <option value="chip">Chip</option>
+      <option value="blade">Blade</option>
+    </select>
 
-        <label for="description">Description:</label>
-        <input type="text" name="comments" id="description" placeholder="Auto-filled if known">
+    <label for="description">Description:</label>
+    <input type="text" name="comments" id="description" placeholder="Auto-filled if known">
 
-        <label for="box_slot">Box Slot:</label>
-        <input type="text" name="box_slot" required>
+    <label for="box_slot">Box Slot:</label>
+    <input type="text" name="box_slot" required>
 
-        <label for="quantity">Quantity:</label>
-        <input type="number" name="quantity" min="1" value="1" required>
+    <label for="quantity">Quantity:</label>
+    <input type="number" name="quantity" min="1" value="1" required>
 
-        <label for="available">Available:</label>
-        <input type="checkbox" name="available" checked>
+    <label for="available">Available:</label>
+    <input type="checkbox" name="available" checked>
 
-        <button type="submit">Add New Item</button>
-    </form>
+    <button type="submit">Add New Item</button>
+  </form>
 
-    <script>
-        let scanner;
-        let mode = 'barcode';
+  <script>
+    let currentMode = 'barcode';
+    let html5scanner, quaggaRunning = false;
 
-        function toggleScanner() {
-            const reader = document.getElementById("reader");
-            if (reader.style.display === "block") {
-                stopScanner();
-            } else {
-                startScanner();
+    function setScanner(mode) {
+      stopAllScanners();
+      currentMode = mode;
+      toggleScanner();
+    }
+
+    function toggleScanner() {
+      stopAllScanners();
+
+      if (currentMode === 'qr') {
+        document.getElementById('reader').style.display = 'block';
+        html5scanner = new Html5Qrcode("reader");
+        html5scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 250 },
+          (text) => {
+            document.getElementById("barcode").value = text;
+            autoFillFromKnownCodes();
+            stopAllScanners();
+          }
+        ).catch(err => console.error("QR scan error", err));
+      } else if (currentMode === 'barcode') {
+        document.getElementById('quagga-reader').style.display = 'block';
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#quagga-reader'),
+            constraints: {
+              facingMode: "environment"
             }
+          },
+          decoder: {
+            readers: ["code_128_reader", "ean_reader", "upc_reader", "upc_e_reader"]
+          }
+        }, function(err) {
+          if (err) return console.error(err);
+          Quagga.start();
+          quaggaRunning = true;
+        });
+
+        Quagga.onDetected(result => {
+          if (result.codeResult.code) {
+            document.getElementById("barcode").value = result.codeResult.code;
+            autoFillFromKnownCodes();
+            stopAllScanners();
+          }
+        });
+      }
+    }
+
+    function stopAllScanners() {
+      if (html5scanner) {
+        html5scanner.stop().then(() => html5scanner.clear()).catch(() => {});
+      }
+      if (quaggaRunning) {
+        Quagga.stop();
+        quaggaRunning = false;
+      }
+      document.getElementById('reader').style.display = 'none';
+      document.getElementById('quagga-reader').style.display = 'none';
+    }
+
+    async function autoFillFromKnownCodes() {
+      const barcode = document.getElementById("barcode").value;
+      if (barcode.length < 4) return;
+
+      try {
+        const response = await fetch(`/known-codes/api/${barcode}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.type) document.getElementById("type").value = data.type;
+          if (data.description) document.getElementById("description").value = data.description;
         }
-
-        function setMode(selectedMode) {
-            mode = selectedMode;
-            stopScanner();
-            startScanner();
-        }
-
-        function startScanner() {
-            const reader = document.getElementById("reader");
-            reader.style.display = "block";
-
-            if (scanner) {
-                scanner.clear();
-            }
-
-            scanner = new Html5Qrcode("reader");
-
-            const config = { fps: 10, qrbox: 250 };
-            const scanFunc = (text) => {
-                document.getElementById("barcode").value = text;
-                autoFillFromKnownCodes();
-                stopScanner();
-            };
-
-            const formatsToSupport = mode === "qr"
-                ? [Html5QrcodeSupportedFormats.QR_CODE]
-                : [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.UPC_A];
-
-            scanner.start({ facingMode: "environment" }, config, scanFunc, undefined, { formatsToSupport })
-                .catch((err) => {
-                    alert("Camera error: " + err);
-                });
-        }
-
-        function stopScanner() {
-            const reader = document.getElementById("reader");
-            reader.style.display = "none";
-            if (scanner) {
-                scanner.stop().then(() => {
-                    scanner.clear();
-                }).catch((err) => {
-                    console.error("Stop error", err);
-                });
-            }
-        }
-
-        async function autoFillFromKnownCodes() {
-            const barcode = document.getElementById("barcode").value;
-            if (barcode.length < 4) return;
-
-            const response = await fetch(`/known-codes/api/${barcode}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data) {
-                    if (data.type) document.getElementById("type").value = data.type;
-                    if (data.description) document.getElementById("description").value = data.description;
-                }
-            }
-        }
-    </script>
+      } catch (err) {
+        console.error("Auto-fill error", err);
+      }
+    }
+  </script>
 </body>
 </html>
