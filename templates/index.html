@@ -21,12 +21,6 @@
 <body>
     <h2 style="text-align: center;">🔑 Locksmith Inventory</h2>
 
-    <form method="get" action="/" style="max-width: 600px; margin: 0 auto 30px auto;">
-        <label>Search Inventory:</label>
-        <input type="text" name="search" placeholder="FCC ID, Make, Model, Year" value="{{ request.args.get('search', '') }}">
-        <button type="submit">Search</button>
-    </form>
-
     <form action="/add" method="post">
         <label>FCC ID:</label>
         <div style="display: flex; align-items: center;">
@@ -59,31 +53,6 @@
         <button type="submit">Add New Key</button>
     </form>
 
-    <form action="/quick_add" method="post" style="max-width: 400px; margin: 40px auto;">
-        <h4>📦 Quick Add (Scan or Type)</h4>
-        <label>FCC ID:</label>
-        <div style="display: flex;">
-            <input type="text" name="fcc_id" id="quick_fcc_id" required>
-            <button type="button" onclick="startQuickScanner()">📷</button>
-        </div>
-        <div id="quick_reader"></div>
-
-        <label>Quantity:</label>
-        <input type="number" name="quantity" min="1" required>
-
-        <label>Box Slot:</label>
-        <input type="text" name="box_slot">
-
-        <button type="submit">Add / Update</button>
-    </form>
-
-    <form action="/upload_order" method="post" enctype="multipart/form-data" style="max-width: 400px; margin: 40px auto;">
-        <h4>📁 Upload Order File</h4>
-        <label>Select CSV, Excel or TXT file:</label>
-        <input type="file" name="file" accept=".csv,.xlsx,.txt" required>
-        <button type="submit">Upload and Import</button>
-    </form>
-
     <h3 style="margin-top: 40px;">All Keys</h3>
     <table>
         <thead>
@@ -101,16 +70,14 @@
         <tbody>
             {% for key in keys %}
             <tr>
-                <td><a href="{{ url_for('key_models', key_id=key.id) }}">
-                    {% if search %}{{ key.fcc_id | replace(search, '<mark>' ~ search ~ '</mark>') | safe }}{% else %}{{ key.fcc_id }}{% endif %}
-                </a></td>
-                <td>{% if search %}{{ key.make | replace(search, '<mark>' ~ search ~ '</mark>') | safe }}{% else %}{{ key.make }}{% endif %}</td>
-                <td>{% if search %}{{ key.model | replace(search, '<mark>' ~ search ~ '</mark>') | safe }}{% else %}{{ key.model }}{% endif %}</td>
-                <td>{% if search %}{{ key.year | string | replace(search, '<mark>' ~ search ~ '</mark>') | safe }}{% else %}{{ key.year }}{% endif %}</td>
+                <td>{{ key.fcc_id }}</td>
+                <td>{{ key.make }}</td>
+                <td>{{ key.model }}</td>
+                <td>{{ key.year }}</td>
                 <td>{{ key.box_slot or '' }}</td>
                 <td>
                     {{ key.quantity }}
-                    {% if key.quantity|int <= 1 %}<span class="low-stock"> — Restock needed!</span>{% endif %}
+                    {% if key.quantity <= 1 %}<span class="low-stock"> — Restock needed!</span>{% endif %}
                 </td>
                 <td>{% if key.available %}✅{% else %}❌{% endif %}</td>
                 <td>{{ key.comments or '' }}</td>
@@ -150,22 +117,6 @@
             }).catch(err => {
                 console.error("Stop error", err);
             });
-        }
-    }
-
-    function startQuickScanner() {
-        const qrRegion = document.getElementById("quick_reader");
-        if (!window.quickQrCode) {
-            window.quickQrCode = new Html5Qrcode("quick_reader");
-            quickQrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: 200 },
-                (message) => {
-                    document.getElementById("quick_fcc_id").value = message;
-                    quickQrCode.stop();
-                    quickQrCode.clear();
-                }
-            );
         }
     }
     </script>

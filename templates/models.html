@@ -1,32 +1,39 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Compatible Vehicles</title>
     <style>
         table { border-collapse: collapse; width: 80%; margin: 20px auto; }
         th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
         th { background-color: #f2f2f2; }
+        body { font-family: Arial, sans-serif; }
+        h2 { text-align: center; margin-top: 40px; }
     </style>
 </head>
 <body>
-    <h2 style="text-align:center;">Compatible Vehicles for FCC: {{ fcc_id }}</h2>
+    <h2>Compatible Vehicles for FCC: {{ fcc_id }}</h2>
     <table>
-        <tr>
-            <th>Make</th>
-            <th>Model</th>
-            <th>Years</th>
-        </tr>
-        {% for model in models %}
-        <tr>
-            <td>{{ model['make'] }}</td>
-            <td>{{ model['model'] }}</td>
-            <td>{{ model['year_range'] }}</td>
-        </tr>
-        {% endfor %}
+        <thead>
+            <tr>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Years</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for model in models %}
+            <tr>
+                <td>{{ model.make }}</td>
+                <td>{{ model.model }}</td>
+                <td>{{ model.year_range }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
     <div style="text-align:center;">
-        <a href="/">← Back to Inventory</a>
+        <a href="/">&larr; Back to Inventory</a>
     </div>
 </body>
 </html>
