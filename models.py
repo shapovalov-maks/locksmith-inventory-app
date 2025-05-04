@@ -2,14 +2,12 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, create_engi
 from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
-
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
-
 Base = declarative_base()
 
 
@@ -47,3 +45,23 @@ class KnownCode(Base):
     type = Column(String, nullable=False)
     description = Column(String, nullable=False)
     brand = Column(String, nullable=True)
+
+
+class FccCode(Base):
+    __tablename__ = 'fcc_codes'
+    id = Column(Integer, primary_key=True)
+    fcc_id = Column(String, unique=True, nullable=False)
+    description = Column(String)
+
+    models = relationship("FccModel", back_populates="fcc_code", cascade="all, delete")
+
+
+class FccModel(Base):
+    __tablename__ = 'fcc_models'
+    id = Column(Integer, primary_key=True)
+    fcc_code_id = Column(Integer, ForeignKey('fcc_codes.id'), nullable=False)
+    make = Column(String)
+    model = Column(String)
+    year = Column(String)
+
+    fcc_code = relationship("FccCode", back_populates="models")

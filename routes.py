@@ -1,6 +1,7 @@
 from flask import Blueprint, request, render_template, redirect, url_for, jsonify
 from flask_login import login_required, current_user
-from models import SessionLocal, KnownCode
+from models import SessionLocal, FccCode, FccModel
+
 
 bp = Blueprint('known_codes', __name__)
 
@@ -59,3 +60,42 @@ def delete_known_code(code_id):
         db.delete(code)
         db.commit()
     return redirect(url_for('known_codes.known_codes'))
+@bp.route('/fcc-codes/api/<fcc_id>')
+@login_required
+def get_fcc_data(fcc_id):
+    db = SessionLocal()
+    fcc_code = db.query(FccCode).filter_by(fcc_id=fcc_id.upper()).first()
+    if not fcc_code:
+        return jsonify({}), 404
+
+    models = db.query(FccModel).filter_by(fcc_code_id=fcc_code.id).all()
+    if models:
+        model_entry = models[0]  # берем первую попавшуюся модель
+        return jsonify({
+            "make": model_entry.make,
+            "model": model_entry.model,
+            "year": model_entry.year,
+            "description": fcc_code.description
+        })
+
+    return jsonify({
+        "description": fcc_code.description
+    })
+@bp.route('/fcc-codes/api/<fcc_id>')
+@login_required
+def get_fcc_models(fcc_id):
+    db = SessionLocal()
+    fcc_code = db.query(FccCode).filter_by(fcc_id=fcc_id.upper().strip()).first()
+    if not fcc_code:
+        return jsonify({"models": []})
+
+    models = db.query(FccModel).filter_by(fcc_code_id=fcc_code.id).all()
+    return jsonify({
+        "models": [
+            {
+                "make": m.make,
+                "model": m.model,
+                "year": m.year
+            } for m in models
+        ]
+    })
