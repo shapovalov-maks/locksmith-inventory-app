@@ -27,7 +27,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ============================
-# Models (imported from models.py in practice)
+# Models
 # ============================
 
 class User(Base, UserMixin):
@@ -154,47 +154,6 @@ def add_key():
     db.commit()
     return redirect(url_for('index'))
 
-@app.route('/known-codes')
-@login_required
-def known_codes():
-    db = SessionLocal()
-    type_filter = request.args.get('type', '').strip()
-    brand_filter = request.args.get('brand', '').strip()
-    query = db.query(KnownCode)
-
-    if type_filter:
-        query = query.filter(KnownCode.type.ilike(f"%{type_filter}%"))
-    if brand_filter:
-        query = query.filter(KnownCode.brand.ilike(f"%{brand_filter}%"))
-
-    codes = query.order_by(KnownCode.id.desc()).all()
-    return render_template("known_codes.html", codes=codes, type_filter=type_filter, brand_filter=brand_filter)
-
-@app.route('/known-codes/edit/<int:code_id>', methods=['GET', 'POST'])
-@login_required
-def edit_known_code(code_id):
-    db = SessionLocal()
-    code = db.query(KnownCode).get(code_id)
-    if request.method == 'POST':
-        code.barcode = request.form.get('barcode')
-        code.type = request.form.get('type')
-        code.description = request.form.get('description')
-        code.brand = request.form.get('brand')
-        db.commit()
-        return redirect(url_for('known_codes'))
-    return render_template("edit_known_code.html", code=code)
-
-@app.route('/known-codes/delete/<int:code_id>')
-@login_required
-def delete_known_code(code_id):
-    db = SessionLocal()
-    code = db.query(KnownCode).get(code_id)
-    if code:
-        db.delete(code)
-        db.commit()
-    return redirect(url_for('known_codes'))
-from routes import bp as known_codes_bp
-app.register_blueprint(known_codes_bp)
 @app.route('/delete/<int:key_id>', methods=['POST'])
 @login_required
 def delete_key(key_id):
@@ -205,6 +164,11 @@ def delete_key(key_id):
         db.commit()
     return redirect(url_for('index'))
 
+# Register blueprint from routes.py
+from routes import bp as known_codes_bp
+app.register_blueprint(known_codes_bp)
+
+# DB Init (development only)
 if __name__ == '__main__':
     Base.metadata.create_all(bind=engine)
     app.run(debug=True)

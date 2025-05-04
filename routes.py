@@ -20,6 +20,7 @@ def known_codes():
     codes = query.order_by(KnownCode.id.desc()).all()
     return render_template("known_codes.html", codes=codes, brand=brand, code_type=code_type)
 
+
 @bp.route('/known-codes/api/<barcode>')
 @login_required
 def get_known_code(barcode):
@@ -32,6 +33,7 @@ def get_known_code(barcode):
             "brand": code.brand
         })
     return jsonify({}), 404
+
 
 @bp.route('/known-codes/edit/<int:code_id>', methods=['GET', 'POST'])
 @login_required
@@ -46,6 +48,7 @@ def edit_known_code(code_id):
         db.commit()
         return redirect(url_for('known_codes.known_codes'))
     return render_template('edit_known_code.html', code=code)
+
 
 @bp.route('/known-codes/delete/<int:code_id>', methods=['POST'])
 @login_required

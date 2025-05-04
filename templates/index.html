@@ -5,94 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.30/dist/dbr.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@10.0.2/dist/dbr.js"></script>
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f9f9f9;
-      margin: 0;
-      padding: 0;
-    }
-    h2 {
-      text-align: center;
-      padding: 20px;
-    }
-    form {
-      background-color: #fff;
-      max-width: 500px;
-      margin: auto;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    }
-    label {
-      font-weight: 600;
-      margin-top: 12px;
-      display: block;
-    }
-    input, select {
-      width: 100%;
-      padding: 10px;
-      margin-top: 6px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 16px;
-    }
-    button {
-      background-color: #007bff;
-      color: #fff;
-      border: none;
-      padding: 12px;
-      margin-top: 20px;
-      width: 100%;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    #scanner {
-      width: 100%;
-      max-width: 500px;
-      margin: 20px auto;
-      display: none;
-    }
-    table {
-      width: 95%;
-      margin: 30px auto;
-      border-collapse: collapse;
-      background-color: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      text-align: left;
-    }
-    th {
-      background-color: #007bff;
-      color: white;
-    }
-    .delete-btn {
-      background-color: #dc3545;
-      color: white;
-      border: none;
-      padding: 6px 10px;
-      font-size: 14px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+    body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
+    h2 { text-align: center; padding: 20px; font-size: 24px; }
+    form { background-color: #fff; max-width: 500px; margin: auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); }
+    label { font-weight: 600; margin-top: 12px; display: block; }
+    input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+    button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .scanner-buttons { display: flex; gap: 10px; margin-top: 10px; }
+    #scanner { width: 100%; max-width: 500px; margin: 20px auto; display: none; }
+    table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background-color: #007bff; color: #fff; }
+    .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
   <h2>🔑 Locksmith Inventory</h2>
-
   <form method="get" action="/">
-    <div style="max-width: 500px; margin: auto; display: flex; gap: 10px;">
-      <input type="text" name="search" placeholder="Search..." value="{{ search or '' }}" style="flex: 1;" />
-      <button type="submit">Search</button>
+    <div style="max-width: 500px; margin: auto; display: flex; gap: 10px; padding: 0 20px 20px;">
+      <input type="text" name="search" placeholder="Search..." value="{{ search or '' }}" style="flex: 1; padding: 10px; font-size: 16px;" />
+      <button type="submit" style="padding: 10px 20px;">Search</button>
     </div>
   </form>
 
@@ -101,7 +36,6 @@
     <div style="display: flex; gap: 8px;">
       <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
       <button type="button" onclick="toggleScanner()">Scan</button>
-      <button type="button" onclick="clearForm()">Clear</button>
     </div>
 
     <div id="scanner"></div>
@@ -127,6 +61,7 @@
     <input type="checkbox" name="available" checked>
 
     <button type="submit">Add New Item</button>
+    <button type="button" onclick="clearForm()" style="background-color: gray; margin-top: 10px;">Clear</button>
   </form>
 
   {% if keys %}
@@ -147,58 +82,62 @@
       </thead>
       <tbody>
         {% for key in keys %}
-        <tr>
-          <td>{{ key.barcode }}</td>
-          <td>{{ key.fcc_id or '' }}</td>
-          <td>{{ key.type }}</td>
-          <td>{{ key.make or '' }}</td>
-          <td>{{ key.model or '' }}</td>
-          <td>{{ key.year or '' }}</td>
-          <td>{{ key.box_slot }}</td>
-          <td>{{ key.quantity }}</td>
-          <td>{{ '✔️' if key.available else '❌' }}</td>
-          <td>
-            <form action="/delete/{{ key.id }}" method="post" onsubmit="return confirm('Are you sure you want to delete this item?');">
-              <button class="delete-btn">Delete</button>
-            </form>
-          </td>
-        </tr>
+          <tr>
+            <td>{{ key.barcode }}</td>
+            <td>{{ key.fcc_id or '' }}</td>
+            <td>{{ key.type }}</td>
+            <td>{{ key.make or '' }}</td>
+            <td>{{ key.model or '' }}</td>
+            <td>{{ key.year or '' }}</td>
+            <td>{{ key.box_slot }}</td>
+            <td>{{ key.quantity }}</td>
+            <td>{{ '✔️' if key.available else '❌' }}</td>
+            <td>
+              <form action="/delete/{{ key.id }}" method="post" onsubmit="return confirm('Are you sure you want to delete this item?');">
+                <button class="delete-btn">Delete</button>
+              </form>
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
   {% else %}
-    <p style="text-align: center;">No keys found.</p>
+    <p style="text-align: center; color: #888;">No keys found.</p>
   {% endif %}
 
   <script>
-    let scannerStarted = false;
+    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzOTc5ODUxLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzOTc5ODUxIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMjAyODM2OTIzNn0=";
+    let scannerInstance = null;
+
     async function toggleScanner() {
       const scannerEl = document.getElementById("scanner");
-      if (scannerStarted) {
-        Dynamsoft.DBR.BarcodeScanner.hide();
-        scannerStarted = false;
+      if (scannerInstance && scannerEl.style.display === "block") {
+        await scannerInstance.hide();
         scannerEl.style.display = "none";
         return;
       }
-
-      scannerEl.style.display = "block";
-      await Dynamsoft.DBR.BarcodeScanner.loadWasm();
-      Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzOTc5ODUxLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzOTc5ODUxIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMjAyODM2OTIzNn0=";
-      const scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-      await scanner.updateVideoSettings({ video: { facingMode: "environment" } });
-      await scanner.setUIElement(scannerEl);
-      await scanner.show();
-      scanner.onFrameRead = results => {
-        if (results.length > 0) {
-          const code = results[0].barcodeText;
-          document.getElementById("barcode").value = code;
-          autoFillFromKnownCodes();
-          scanner.hide();
-          scannerStarted = false;
-          scannerEl.style.display = "none";
+      try {
+        scannerEl.style.display = "block";
+        if (!scannerInstance) {
+          await Dynamsoft.DBR.BarcodeScanner.loadWasm();
+          scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+          await scannerInstance.updateVideoSettings({ video: { facingMode: "environment" } });
+          await scannerInstance.setUIElement(scannerEl);
+          scannerInstance.onFrameRead = results => {
+            if (results.length > 0) {
+              const code = results[0].barcodeText;
+              document.getElementById("barcode").value = code;
+              autoFillFromKnownCodes();
+              scannerInstance.hide();
+              scannerEl.style.display = "none";
+            }
+          };
         }
-      };
-      scannerStarted = true;
+        await scannerInstance.show();
+      } catch (error) {
+        console.error("Scanner failed to start:", error);
+        alert("Scanner failed to start. See console for details.");
+      }
     }
 
     async function autoFillFromKnownCodes() {
