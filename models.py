@@ -1,13 +1,12 @@
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, create_engine
+from sqlalchemy.orm import relationship, declarative_base, sessionmaker
 import os
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
-from sqlalchemy.orm import sessionmaker, scoped_session, relationship, declarative_base
 
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")  # переменная окружения Render
 
 engine = create_engine(DATABASE_URL)
-SessionLocal = scoped_session(sessionmaker(bind=engine))
+SessionLocal = sessionmaker(bind=engine)
+
 Base = declarative_base()
 
 
@@ -25,7 +24,7 @@ class Key(Base):
     id = Column(Integer, primary_key=True)
     fcc_id = Column(String)
     barcode = Column(String)
-    type = Column(String, default='fcc')  # fcc, universal, chip, blade, etc.
+    type = Column(String, default='fcc')
     make = Column(String)
     model = Column(String)
     year = Column(Integer)
@@ -42,6 +41,6 @@ class KnownCode(Base):
     __tablename__ = 'known_codes'
     id = Column(Integer, primary_key=True)
     barcode = Column(String, unique=True, nullable=False)
-    type = Column(String, nullable=False)  # blade, chip, universal, etc.
+    type = Column(String, nullable=False)
     description = Column(String, nullable=False)
     brand = Column(String, nullable=True)
