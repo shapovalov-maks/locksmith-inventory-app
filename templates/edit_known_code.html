@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edit Known Code</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px auto;
+            max-width: 600px;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        a {
+            display: inline-block;
+            margin-top: 15px;
+            text-align: center;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h2>Edit Known Code</h2>
+
+    <form method="POST">
+        <label>Barcode:</label>
+        <input type="text" name="barcode" value="{{ code.barcode }}" required>
+
+        <label>Type:</label>
+        <select name="type" required>
+            <option value="fcc" {% if code.type == 'fcc' %}selected{% endif %}>FCC</option>
+            <option value="universal" {% if code.type == 'universal' %}selected{% endif %}>Universal</option>
+            <option value="chip" {% if code.type == 'chip' %}selected{% endif %}>Chip</option>
+            <option value="blade" {% if code.type == 'blade' %}selected{% endif %}>Blade</option>
+        </select>
+
+        <label>Description:</label>
+        <input type="text" name="description" value="{{ code.description or '' }}">
+
+        <label>Brand:</label>
+        <input type="text" name="brand" value="{{ code.brand or '' }}">
+
+        <button type="submit">Save Changes</button>
+    </form>
+
+    <div style="text-align:center;">
+        <a href="{{ url_for('known_codes') }}">&larr; Back to Known Codes</a>
+    </div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Known Codes</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f9f9f9; }
+        h2 { text-align: center; margin-bottom: 20px; }
+        form { margin-bottom: 20px; text-align: center; }
+        input, select { padding: 6px; margin-right: 10px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        a.button { text-decoration: none; color: white; background: #007bff; padding: 5px 10px; border-radius: 4px; }
+        a.button.delete { background: #dc3545; }
+    </style>
+</head>
+<body>
+<h2>Known Codes</h2>
+
+<form method="get">
+    <input type="text" name="brand" placeholder="Filter by brand" value="{{ request.args.get('brand', '') }}">
+    <input type="text" name="type" placeholder="Filter by type" value="{{ request.args.get('type', '') }}">
+    <button type="submit">Filter</button>
+    <a href="/known-codes" class="button">Reset</a>
+</form>
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Barcode</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Brand</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for code in codes %}
+        <tr>
+            <td>{{ code.id }}</td>
+            <td>{{ code.barcode }}</td>
+            <td>{{ code.type }}</td>
+            <td>{{ code.description }}</td>
+            <td>{{ code.brand }}</td>
+            <td>
+                <a class="button" href="/known-codes/edit/{{ code.id }}">Edit</a>
+                <a class="button delete" href="/known-codes/delete/{{ code.id }}" onclick="return confirm('Are you sure?')">Delete</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No codes found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="text-align:center; margin-top: 20px;">
+    <a href="/">&larr; Back to Inventory</a>
+</div>
+</body>
+</html>

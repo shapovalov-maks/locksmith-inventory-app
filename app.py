@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, or_
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session, declarative_base
 import os
 from dotenv import load_dotenv
@@ -27,7 +27,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ============================
-# Models
+# Models (imported from models.py in practice)
 # ============================
 
 class User(Base, UserMixin):
@@ -37,7 +37,6 @@ class User(Base, UserMixin):
     password = Column(String, nullable=False)
     session_token = Column(String)
     keys = relationship("Key", back_populates="user")
-
 
 class Key(Base):
     __tablename__ = 'keys'
@@ -56,6 +55,14 @@ class Key(Base):
 
     user = relationship("User", back_populates="keys")
 
+class KnownCode(Base):
+    __tablename__ = 'known_codes'
+    id = Column(Integer, primary_key=True)
+    barcode = Column(String, unique=True)
+    type = Column(String)
+    description = Column(String)
+    brand = Column(String)
+
 # ============================
 # User Loader
 # ============================
@@ -73,8 +80,20 @@ def load_user(user_id):
 @login_required
 def index():
     db = SessionLocal()
-    keys = db.query(Key).filter_by(user_id=current_user.id).order_by(Key.id.desc()).all()
-    return render_template('index.html', keys=keys)
+    search = request.args.get("search", "").strip()
+    query = db.query(Key).filter_by(user_id=current_user.id)
+
+    if search:
+        query = query.filter(or_(
+            Key.fcc_id.ilike(f"%{search}%"),
+            Key.make.ilike(f"%{search}%"),
+            Key.model.ilike(f"%{search}%"),
+            Key.type.ilike(f"%{search}%"),
+            Key.barcode.ilike(f"%{search}%")
+        ))
+
+    keys = query.order_by(Key.id.desc()).all()
+    return render_template('index.html', keys=keys, search=search)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -115,11 +134,14 @@ def logout():
 @login_required
 def add_key():
     db = SessionLocal()
+    barcode = request.form.get('barcode')
+    known = db.query(KnownCode).filter_by(barcode=barcode).first()
+
     new_key = Key(
         fcc_id=request.form.get('fcc_id'),
-        barcode=request.form.get('barcode'),
-        type=request.form.get('type', 'fcc'),
-        make=request.form.get('make') or None,
+        barcode=barcode,
+        type=request.form.get('type') or (known.type if known else 'fcc'),
+        make=request.form.get('make') or (known.description if known else None),
         model=request.form.get('model') or None,
         year=int(request.form.get('year')) if request.form.get('year') else None,
         box_slot=request.form.get('box_slot'),
@@ -132,9 +154,47 @@ def add_key():
     db.commit()
     return redirect(url_for('index'))
 
-# ============================
-# DB Init (only for first launch)
-# ============================
+@app.route('/known-codes')
+@login_required
+def known_codes():
+    db = SessionLocal()
+    type_filter = request.args.get('type', '').strip()
+    brand_filter = request.args.get('brand', '').strip()
+    query = db.query(KnownCode)
+
+    if type_filter:
+        query = query.filter(KnownCode.type.ilike(f"%{type_filter}%"))
+    if brand_filter:
+        query = query.filter(KnownCode.brand.ilike(f"%{brand_filter}%"))
+
+    codes = query.order_by(KnownCode.id.desc()).all()
+    return render_template("known_codes.html", codes=codes, type_filter=type_filter, brand_filter=brand_filter)
+
+@app.route('/known-codes/edit/<int:code_id>', methods=['GET', 'POST'])
+@login_required
+def edit_known_code(code_id):
+    db = SessionLocal()
+    code = db.query(KnownCode).get(code_id)
+    if request.method == 'POST':
+        code.barcode = request.form.get('barcode')
+        code.type = request.form.get('type')
+        code.description = request.form.get('description')
+        code.brand = request.form.get('brand')
+        db.commit()
+        return redirect(url_for('known_codes'))
+    return render_template("edit_known_code.html", code=code)
+
+@app.route('/known-codes/delete/<int:code_id>')
+@login_required
+def delete_known_code(code_id):
+    db = SessionLocal()
+    code = db.query(KnownCode).get(code_id)
+    if code:
+        db.delete(code)
+        db.commit()
+    return redirect(url_for('known_codes'))
+from routes import bp as known_codes_bp
+app.register_blueprint(known_codes_bp)
 
 if __name__ == '__main__':
     Base.metadata.create_all(bind=engine)

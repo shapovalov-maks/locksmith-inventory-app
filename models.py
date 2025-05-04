@@ -1,13 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 Base = declarative_base()
-engine = create_engine(DATABASE_URL)
 
 
 class User(Base):
@@ -33,4 +27,14 @@ class Key(Base):
     available = Column(Boolean, default=True)
     comments = Column(String)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
     user = relationship("User", back_populates="keys")
+
+
+class KnownCode(Base):
+    __tablename__ = 'known_codes'
+    id = Column(Integer, primary_key=True)
+    barcode = Column(String, unique=True, nullable=False)
+    type = Column(String, nullable=False)  # blade, chip, universal, etc.
+    description = Column(String, nullable=False)
+    brand = Column(String, nullable=True)
