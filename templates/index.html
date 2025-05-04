@@ -1,229 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>🔑 Locksmith Inventory</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f8f9fa;
-      margin: 0;
-      padding: 20px;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>🔑 Locksmith Inventory</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            background-color: #f9f9f9;
+        }
 
-    h2 {
-      text-align: center;
-      color: #333;
-    }
+        h2 {
+            text-align: center;
+            padding: 20px;
+            font-size: 24px;
+        }
 
-    form {
-      max-width: 600px;
-      margin: 30px auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    }
+        form {
+            background-color: #fff;
+            max-width: 500px;
+            margin: auto;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
 
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
+        label {
+            font-weight: 600;
+            margin-top: 12px;
+            display: block;
+        }
 
-    input, select, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      box-sizing: border-box;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
 
-    .scanner-controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            margin-top: 20px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
 
-    .scanner-controls button {
-      width: auto;
-      padding: 8px 12px;
-      margin-top: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+        button:hover {
+            background-color: #0056b3;
+        }
 
-    .scanner-controls button:hover {
-      background-color: #0056b3;
-    }
+        .scanner-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
 
-    #reader {
-      margin: 15px auto;
-      max-width: 320px;
-      display: none;
-    }
+        #reader {
+            width: 100%;
+            max-width: 360px;
+            margin: 20px auto;
+            display: none;
+        }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 40px;
-      background: #fff;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-    }
+        @media screen and (max-width: 480px) {
+            form {
+                margin: 10px;
+                padding: 15px;
+            }
 
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-
-    th {
-      background-color: #f1f1f1;
-    }
-
-    .low-stock {
-      color: red;
-      font-weight: bold;
-    }
-  </style>
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+            h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body>
-  <h2>🔑 Locksmith Inventory</h2>
+    <h2>🔑 Locksmith Inventory</h2>
 
-  <form action="/add" method="post">
-    <label>Barcode:</label>
-    <div class="scanner-controls">
-      <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()">
-      <button type="button" onclick="toggleScanner()">📷 Scan</button>
-      <button type="button" onclick="switchMode()">🔁 Mode: <span id="scanModeLabel">QR</span></button>
-    </div>
-    <div id="reader"></div>
+    <form action="/add" method="post">
+        <label for="barcode">Barcode:</label>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
+            <button type="button" onclick="toggleScanner()">Scan</button>
+        </div>
 
-    <label>Type:</label>
-    <select name="type" id="type">
-      <option value="fcc">FCC</option>
-      <option value="universal">Universal</option>
-      <option value="chip">Chip</option>
-      <option value="blade">Blade</option>
-    </select>
+        <div class="scanner-buttons">
+            <button type="button" onclick="setMode('qr')">Mode: QR</button>
+            <button type="button" onclick="setMode('barcode')">Mode: Barcode</button>
+        </div>
 
-    <label>Description:</label>
-    <input type="text" name="comments" id="description" placeholder="Auto-filled if known">
+        <div id="reader"></div>
 
-    <label>Box Slot:</label>
-    <input type="text" name="box_slot" required>
+        <label for="type">Type:</label>
+        <select name="type" id="type">
+            <option value="fcc">FCC</option>
+            <option value="universal">Universal</option>
+            <option value="chip">Chip</option>
+            <option value="blade">Blade</option>
+        </select>
 
-    <label>Quantity:</label>
-    <input type="number" name="quantity" min="1" value="1" required>
+        <label for="description">Description:</label>
+        <input type="text" name="comments" id="description" placeholder="Auto-filled if known">
 
-    <label>Available:</label>
-    <input type="checkbox" name="available" checked>
+        <label for="box_slot">Box Slot:</label>
+        <input type="text" name="box_slot" required>
 
-    <button type="submit" style="margin-top: 20px; background-color: green; color: white;">➕ Add New Item</button>
-  </form>
+        <label for="quantity">Quantity:</label>
+        <input type="number" name="quantity" min="1" value="1" required>
 
-  <h3 style="text-align: center;">Inventory List</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>FCC ID</th>
-        <th>Barcode</th>
-        <th>Type</th>
-        <th>Make</th>
-        <th>Model</th>
-        <th>Year</th>
-        <th>Box Slot</th>
-        <th>Quantity</th>
-        <th>Available</th>
-        <th>Comments</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for key in keys %}
-      <tr>
-        <td>{{ key.fcc_id }}</td>
-        <td>{{ key.barcode }}</td>
-        <td>{{ key.type }}</td>
-        <td>{{ key.make }}</td>
-        <td>{{ key.model }}</td>
-        <td>{{ key.year }}</td>
-        <td>{{ key.box_slot or '' }}</td>
-        <td>
-          {{ key.quantity }}
-          {% if key.quantity <= 1 %}<span class="low-stock"> — Restock needed!</span>{% endif %}
-        </td>
-        <td>{% if key.available %}✅{% else %}❌{% endif %}</td>
-        <td>{{ key.comments or '' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+        <label for="available">Available:</label>
+        <input type="checkbox" name="available" checked>
 
-  <script>
-    let scannerRunning = false;
-    let html5QrCode;
-    let scanMode = "qr_code"; // or "code_128"
+        <button type="submit">Add New Item</button>
+    </form>
 
-    function switchMode() {
-      scanMode = scanMode === "qr_code" ? "code_128" : "qr_code";
-      document.getElementById("scanModeLabel").textContent = scanMode === "qr_code" ? "QR" : "Barcode";
-    }
+    <script>
+        let scanner;
+        let mode = 'barcode';
 
-    function toggleScanner() {
-      const reader = document.getElementById("reader");
-      if (!scannerRunning) {
-        html5QrCode = new Html5Qrcode("reader");
-        reader.style.display = "block";
-        html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
-          qrCodeMessage => {
-            document.getElementById("barcode").value = qrCodeMessage;
-            autoFillFromKnownCodes();
-            stopScanner();
-          },
-          error => { /* ignore read errors */ },
-          [scanMode]
-        ).then(() => {
-          scannerRunning = true;
-        }).catch(err => {
-          alert("Camera error: " + err);
-        });
-      } else {
-        stopScanner();
-      }
-    }
-
-    function stopScanner() {
-      if (html5QrCode && scannerRunning) {
-        html5QrCode.stop().then(() => {
-          html5QrCode.clear();
-          scannerRunning = false;
-          document.getElementById("reader").style.display = "none";
-        }).catch(err => {
-          console.error("Stop error", err);
-        });
-      }
-    }
-
-    async function autoFillFromKnownCodes() {
-      const barcode = document.getElementById("barcode").value;
-      if (barcode.length < 4) return;
-      const response = await fetch(`/known-codes/api/${barcode}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data) {
-          if (data.type) document.getElementById("type").value = data.type;
-          if (data.description) document.getElementById("description").value = data.description;
+        function toggleScanner() {
+            const reader = document.getElementById("reader");
+            if (reader.style.display === "block") {
+                stopScanner();
+            } else {
+                startScanner();
+            }
         }
-      }
-    }
-  </script>
+
+        function setMode(selectedMode) {
+            mode = selectedMode;
+            stopScanner();
+            startScanner();
+        }
+
+        function startScanner() {
+            const reader = document.getElementById("reader");
+            reader.style.display = "block";
+
+            if (scanner) {
+                scanner.clear();
+            }
+
+            scanner = new Html5Qrcode("reader");
+
+            const config = { fps: 10, qrbox: 250 };
+            const scanFunc = (text) => {
+                document.getElementById("barcode").value = text;
+                autoFillFromKnownCodes();
+                stopScanner();
+            };
+
+            const formatsToSupport = mode === "qr"
+                ? [Html5QrcodeSupportedFormats.QR_CODE]
+                : [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.UPC_A];
+
+            scanner.start({ facingMode: "environment" }, config, scanFunc, undefined, { formatsToSupport })
+                .catch((err) => {
+                    alert("Camera error: " + err);
+                });
+        }
+
+        function stopScanner() {
+            const reader = document.getElementById("reader");
+            reader.style.display = "none";
+            if (scanner) {
+                scanner.stop().then(() => {
+                    scanner.clear();
+                }).catch((err) => {
+                    console.error("Stop error", err);
+                });
+            }
+        }
+
+        async function autoFillFromKnownCodes() {
+            const barcode = document.getElementById("barcode").value;
+            if (barcode.length < 4) return;
+
+            const response = await fetch(`/known-codes/api/${barcode}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data) {
+                    if (data.type) document.getElementById("type").value = data.type;
+                    if (data.description) document.getElementById("description").value = data.description;
+                }
+            }
+        }
+    </script>
 </body>
 </html>
