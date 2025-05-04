@@ -106,16 +106,25 @@
   {% endif %}
 
   <script>
+  window.addEventListener("DOMContentLoaded", async () => {
+    if (typeof Dynamsoft === "undefined" || !Dynamsoft.DBR) {
+      console.error("❌ Dynamsoft SDK not loaded.");
+      alert("Scanner script failed to load. Please check your internet connection or try refreshing.");
+      return;
+    }
+
     Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzOTc5ODUxLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzOTc5ODUxIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMjAyODM2OTIzNn0=";
+
     let scannerInstance = null;
 
-    async function toggleScanner() {
+    window.toggleScanner = async function () {
       const scannerEl = document.getElementById("scanner");
       if (scannerInstance && scannerEl.style.display === "block") {
         await scannerInstance.hide();
         scannerEl.style.display = "none";
         return;
       }
+
       try {
         scannerEl.style.display = "block";
         if (!scannerInstance) {
@@ -138,9 +147,9 @@
         console.error("Scanner failed to start:", error);
         alert("Scanner failed to start. See console for details.");
       }
-    }
+    };
 
-    async function autoFillFromKnownCodes() {
+    window.autoFillFromKnownCodes = async function () {
       const barcode = document.getElementById("barcode").value;
       if (barcode.length < 4) return;
       try {
@@ -153,17 +162,18 @@
       } catch (err) {
         console.error("Auto-fill error:", err);
       }
-    }
+    };
 
-    function clearForm() {
+    window.clearForm = function () {
       const form = document.getElementById("add-form");
       form.reset();
       document.getElementById("barcode").focus();
-    }
+    };
 
     document.getElementById("add-form").addEventListener("submit", function () {
       setTimeout(() => clearForm(), 200);
     });
-  </script>
+  });
+</script>
 </body>
 </html>
