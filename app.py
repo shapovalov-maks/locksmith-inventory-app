@@ -195,6 +195,15 @@ def delete_known_code(code_id):
     return redirect(url_for('known_codes'))
 from routes import bp as known_codes_bp
 app.register_blueprint(known_codes_bp)
+@app.route('/delete/<int:key_id>', methods=['POST'])
+@login_required
+def delete_key(key_id):
+    db = SessionLocal()
+    key = db.query(Key).filter_by(id=key_id, user_id=current_user.id).first()
+    if key:
+        db.delete(key)
+        db.commit()
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     Base.metadata.create_all(bind=engine)
