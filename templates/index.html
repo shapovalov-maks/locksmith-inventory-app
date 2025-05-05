@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Use a simpler scanner library specifically designed for mobile -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -16,18 +14,46 @@
     button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
     button:hover { background-color: #0056b3; }
 
-    #reader-container {
-      position: relative;
+    .scanner-options {
+      margin-top: 10px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    .scanner-option-btn {
+      display: block;
       width: 100%;
-      max-width: 500px;
-      margin: 20px auto;
+      margin-top: 10px;
+      padding: 12px;
+      text-align: left;
+      border-radius: 6px;
+      cursor: pointer;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      position: relative;
+    }
+
+    .scanner-option-btn i {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .clipboard-instruction {
+      background-color: #e9f7fe;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 15px;
       display: none;
     }
 
-    #reader {
-      width: 100%;
-      border-radius: 6px;
-      overflow: hidden;
+    .scanner-note {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 10px;
     }
 
     #scanner-status {
@@ -38,25 +64,7 @@
       background-color: #f8f9fa;
       border-radius: 6px;
       border: 1px solid #eee;
-    }
-
-    #file-selector {
       display: none;
-      margin-top: 10px;
-      padding: 10px;
-      background-color: #f8f9fa;
-      border-radius: 6px;
-      border: 1px solid #eee;
-    }
-
-    #camera-permissions {
-      display: none;
-      margin-top: 10px;
-      padding: 10px;
-      background-color: #fff3cd;
-      border-radius: 6px;
-      border: 1px solid #ffeeba;
-      color: #856404;
     }
 
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -64,11 +72,19 @@
     th { background-color: #007bff; color: #fff; }
     .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
 
+    #file-selector {
+      display: none;
+      margin-top: 10px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
     @media (max-width: 768px) {
-      .camera-toggle-btn {
-        display: block;
-        width: 100%;
-        margin-top: 10px;
+      form {
+        border-radius: 0;
+        box-shadow: none;
       }
     }
   </style>
@@ -87,31 +103,53 @@
     <label for="barcode">Barcode:</label>
     <div style="display: flex; gap: 8px;">
       <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
-      <button type="button" onclick="startScanner()" style="width: auto; padding: 10px 15px;">Scan</button>
+      <button type="button" onclick="showScanOptions()" style="width: auto; padding: 10px 15px;">Scan</button>
     </div>
 
-    <div id="camera-permissions">
-      <p>Camera access is required to scan barcodes. Please ensure you've granted camera permissions to this site.</p>
-      <p>If you continue having issues, you can:</p>
-      <ol>
-        <li>Try using a different browser</li>
-        <li>Upload an image of the barcode instead</li>
-      </ol>
-      <button type="button" onclick="showFileSelector()" style="background-color: #6c757d;">Upload Barcode Image</button>
+    <div id="scan-options" class="scanner-options" style="display: none;">
+      <h3 style="margin-top: 0;">Scan Options:</h3>
+
+      <!-- iOS Native Camera -->
+      <button type="button" class="scanner-option-btn" onclick="useNativeCamera('ios')">
+        Use iPhone Camera
+        <i>📱</i>
+      </button>
+
+      <!-- Android Native Scanner -->
+      <button type="button" class="scanner-option-btn" onclick="useNativeCamera('android')">
+        Use Android Scanner
+        <i>📱</i>
+      </button>
+
+      <!-- Upload Image -->
+      <button type="button" class="scanner-option-btn" onclick="showFileSelector()">
+        Upload Barcode Image
+        <i>🖼️</i>
+      </button>
+
+      <!-- Manual Entry Instructions -->
+      <button type="button" class="scanner-option-btn" onclick="showClipboardInstructions()">
+        Scan with External App
+        <i>📋</i>
+      </button>
+
+      <div id="clipboard-instructions" class="clipboard-instruction">
+        <ol>
+          <li>Open your device's camera app or a barcode scanning app</li>
+          <li>Scan the barcode</li>
+          <li>Copy the barcode number</li>
+          <li>Return to this page and paste into the barcode field</li>
+        </ol>
+      </div>
+
+      <p class="scanner-note">Note: Native camera scanning offers the best accuracy</p>
     </div>
 
     <div id="file-selector">
       <label for="barcode-image">Select an image of the barcode:</label>
-      <input type="file" id="barcode-image" accept="image/*" style="border: none; padding: 10px 0;" onChange="scanBarcodeFromImage(this)">
+      <input type="file" id="barcode-image" accept="image/*" capture="environment" style="border: none; padding: 10px 0;" onChange="processSelectedImage(this)">
     </div>
 
-    <div id="reader-container">
-      <div id="reader"></div>
-      <div style="text-align: center; margin-top: 10px;">
-        <button type="button" class="camera-toggle-btn" onclick="toggleCamera()" style="background-color: #6c757d; width: auto; display: inline-block; padding: 8px 15px; margin: 0 5px;">Switch Camera</button>
-        <button type="button" class="camera-toggle-btn" onclick="stopScanner()" style="background-color: #dc3545; width: auto; display: inline-block; padding: 8px 15px; margin: 0 5px;">Close Scanner</button>
-      </div>
-    </div>
     <div id="scanner-status"></div>
 
     <label for="type">Type:</label>
@@ -180,8 +218,77 @@
   {% endif %}
 
   <script>
-    let html5QrCode = null;
-    let currentCamera = 'environment'; // 'environment' = back camera, 'user' = front camera
+    // Check device type
+    function isIOS() {
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+
+    function isAndroid() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
+    function showScanOptions() {
+      document.getElementById('scan-options').style.display = 'block';
+      document.getElementById('file-selector').style.display = 'none';
+      document.getElementById('clipboard-instructions').style.display = 'none';
+      updateScannerStatus("");
+    }
+
+    function showFileSelector() {
+      document.getElementById('file-selector').style.display = 'block';
+      document.getElementById('clipboard-instructions').style.display = 'none';
+    }
+
+    function showClipboardInstructions() {
+      document.getElementById('clipboard-instructions').style.display = 'block';
+      document.getElementById('file-selector').style.display = 'none';
+    }
+
+    function useNativeCamera(platform) {
+      if (platform === 'ios' && isIOS()) {
+        // For iOS devices - open Camera app
+        alert("The app will now open your Camera app. After scanning, copy the barcode and return to this page to paste it.");
+        // Clear any existing timeout
+        if (window.returnTimeout) clearTimeout(window.returnTimeout);
+
+        // Set a flag to check if we've returned from camera
+        localStorage.setItem('returning_from_camera', 'true');
+
+        // Redirect to camera
+        window.location.href = "photos-redirect://";
+
+        // Focus on barcode input when user returns
+        window.returnTimeout = setTimeout(function() {
+          if (localStorage.getItem('returning_from_camera') === 'true') {
+            document.getElementById('barcode').focus();
+            localStorage.removeItem('returning_from_camera');
+            updateScannerStatus("Paste the barcode you scanned here");
+          }
+        }, 5000); // Check after 5 seconds
+
+      } else if (platform === 'android' && isAndroid()) {
+        // For Android devices - try to open barcode scanning app
+        alert("The app will now try to open a barcode scanner. After scanning, copy the barcode and return to this page to paste it.");
+
+        // Set a flag to check if we've returned from scanner
+        localStorage.setItem('returning_from_scanner', 'true');
+
+        // Try to open a common barcode scanner
+        window.location.href = "market://details?id=com.google.zxing.client.android";
+
+        // Focus on barcode input when user returns
+        setTimeout(function() {
+          if (localStorage.getItem('returning_from_scanner') === 'true') {
+            document.getElementById('barcode').focus();
+            localStorage.removeItem('returning_from_scanner');
+            updateScannerStatus("Paste the barcode you scanned here");
+          }
+        }, 5000); // Check after 5 seconds
+      } else {
+        // If platform detection fails
+        alert("Could not detect your device type. Please use another scanning option.");
+      }
+    }
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -191,179 +298,24 @@
       }
     }
 
-    function showFileSelector() {
-      document.getElementById('file-selector').style.display = 'block';
-      document.getElementById('camera-permissions').style.display = 'none';
-    }
-
-    async function scanBarcodeFromImage(input) {
+    // Handle file upload for barcode scanning
+    function processSelectedImage(input) {
       if (!input.files || !input.files[0]) return;
 
-      updateScannerStatus("Processing image...");
+      updateScannerStatus("Image selected. Please enter the barcode manually after viewing the image.");
 
-      try {
-        if (!html5QrCode) {
-          html5QrCode = new Html5Qrcode("reader");
-        }
+      // For a production app, you could implement client-side or server-side barcode detection
+      // But for simplicity, we're asking the user to manually enter the code after viewing the image
+      const file = input.files[0];
+      const reader = new FileReader();
 
-        const imageFile = input.files[0];
-        const scanResult = await html5QrCode.scanFile(imageFile, true);
-
-        if (scanResult) {
-          document.getElementById("barcode").value = scanResult;
-          updateScannerStatus("Barcode detected: " + scanResult);
-          autoFillFromKnownCodes();
-          document.getElementById('file-selector').style.display = 'none';
-        }
-      } catch (error) {
-        console.error("Error scanning barcode from image:", error);
-        updateScannerStatus("Could not detect a barcode in the image. Try another image or enter the barcode manually.");
-      }
-    }
-
-    function startScanner() {
-      const readerContainer = document.getElementById('reader-container');
-      const statusEl = document.getElementById('scanner-status');
-
-      if (html5QrCode && html5QrCode.isScanning) {
-        stopScanner();
-        return;
-      }
-
-      // Show scanner container
-      readerContainer.style.display = 'block';
-      updateScannerStatus("Initializing scanner...");
-
-      // Initialize scanner object if not already created
-      if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("reader");
-      }
-
-      // Camera config
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 150 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.CODE_93,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.CODABAR
-        ]
+      reader.onload = function(e) {
+        // Here you'd typically use a barcode detection library
+        // But for now, we just focus on the input field
+        document.getElementById('barcode').focus();
       };
 
-      // First try to get camera list
-      Html5Qrcode.getCameras()
-        .then(cameras => {
-          if (cameras && cameras.length > 0) {
-            // Start with the first camera (usually back camera on mobile)
-            const cameraId = cameras[0].id;
-
-            // Start scanning
-            html5QrCode.start(
-              { facingMode: currentCamera },
-              config,
-              onScanSuccess,
-              onScanFailure
-            ).catch(err => {
-              console.error("Error starting scanner:", err);
-              document.getElementById('camera-permissions').style.display = 'block';
-              updateScannerStatus("Could not access camera. Check permissions.");
-            });
-          } else {
-            // No cameras found
-            console.error("No cameras found");
-            document.getElementById('camera-permissions').style.display = 'block';
-            updateScannerStatus("No cameras found on this device.");
-          }
-        })
-        .catch(err => {
-          // Error getting cameras, likely permission issue
-          console.error("Error getting cameras:", err);
-          document.getElementById('camera-permissions').style.display = 'block';
-          updateScannerStatus("Could not access camera. Check permissions.");
-        });
-    }
-
-    function toggleCamera() {
-      if (html5QrCode && html5QrCode.isScanning) {
-        // Stop current scan
-        html5QrCode.stop().then(() => {
-          // Toggle camera
-          currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
-
-          // Update status
-          updateScannerStatus("Switching camera...");
-
-          // Restart with new camera
-          const config = {
-            fps: 10,
-            qrbox: { width: 250, height: 150 },
-            formatsToSupport: [
-              Html5QrcodeSupportedFormats.CODE_128,
-              Html5QrcodeSupportedFormats.EAN_13,
-              Html5QrcodeSupportedFormats.EAN_8,
-              Html5QrcodeSupportedFormats.CODE_39,
-              Html5QrcodeSupportedFormats.CODE_93,
-              Html5QrcodeSupportedFormats.UPC_A,
-              Html5QrcodeSupportedFormats.UPC_E,
-              Html5QrcodeSupportedFormats.ITF,
-              Html5QrcodeSupportedFormats.CODABAR
-            ]
-          };
-
-          html5QrCode.start(
-            { facingMode: currentCamera },
-            config,
-            onScanSuccess,
-            onScanFailure
-          ).then(() => {
-            updateScannerStatus("Camera ready. Point at a barcode to scan.");
-          }).catch(err => {
-            console.error("Error starting scanner with new camera:", err);
-            updateScannerStatus("Error switching camera. Try again.");
-          });
-        }).catch(err => {
-          console.error("Error stopping scanner:", err);
-        });
-      }
-    }
-
-    function onScanSuccess(decodedText, decodedResult) {
-      // Update UI
-      document.getElementById("barcode").value = decodedText;
-      updateScannerStatus("Barcode detected: " + decodedText);
-
-      // Auto-fill other fields
-      autoFillFromKnownCodes();
-
-      // Stop scanner
-      stopScanner();
-    }
-
-    function onScanFailure(error) {
-      // This is called frequently when no barcode is found, so we don't need to log every failure
-      // console.error("Scan failure:", error);
-    }
-
-    function stopScanner() {
-      if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().then(() => {
-          // Clear status and hide scanner container
-          updateScannerStatus("");
-          document.getElementById('reader-container').style.display = 'none';
-        }).catch(err => {
-          console.error("Error stopping scanner:", err);
-        });
-      } else {
-        // Just hide container if not scanning
-        updateScannerStatus("");
-        document.getElementById('reader-container').style.display = 'none';
-      }
+      reader.readAsDataURL(file);
     }
 
     async function autoFillFromKnownCodes() {
@@ -385,19 +337,48 @@
       const form = document.getElementById("add-form");
       form.reset();
       document.getElementById("barcode").focus();
-      updateScannerStatus("");
-      document.getElementById('camera-permissions').style.display = 'none';
+      document.getElementById('scan-options').style.display = 'none';
       document.getElementById('file-selector').style.display = 'none';
+      document.getElementById('clipboard-instructions').style.display = 'none';
+      updateScannerStatus("");
     }
 
     document.getElementById("add-form").addEventListener("submit", function () {
       setTimeout(() => clearForm(), 200);
     });
 
-    // Check if the site is loaded over HTTPS
+    // Check if returning from camera/scanner
     document.addEventListener('DOMContentLoaded', function() {
-      if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-        updateScannerStatus("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
+      // Focus on barcode input if returning from camera/scanner
+      if (localStorage.getItem('returning_from_camera') === 'true' ||
+          localStorage.getItem('returning_from_scanner') === 'true') {
+        document.getElementById('barcode').focus();
+        localStorage.removeItem('returning_from_camera');
+        localStorage.removeItem('returning_from_scanner');
+        updateScannerStatus("Paste the barcode you scanned here");
+      }
+
+      // Optimize UI based on device
+      if (isIOS()) {
+        document.querySelector('.scanner-option-btn:nth-child(1)').style.display = 'block';
+        document.querySelector('.scanner-option-btn:nth-child(2)').style.display = 'none';
+      } else if (isAndroid()) {
+        document.querySelector('.scanner-option-btn:nth-child(1)').style.display = 'none';
+        document.querySelector('.scanner-option-btn:nth-child(2)').style.display = 'block';
+      } else {
+        document.querySelector('.scanner-option-btn:nth-child(1)').style.display = 'none';
+        document.querySelector('.scanner-option-btn:nth-child(2)').style.display = 'none';
+      }
+
+      // Check if clipboard API is available for paste suggestion
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        // Modern browsers support clipboard access
+        document.getElementById('barcode').addEventListener('focus', function() {
+          if (localStorage.getItem('returning_from_camera') === 'true' ||
+              localStorage.getItem('returning_from_scanner') === 'true') {
+            updateScannerStatus("Press Ctrl+V (or Cmd+V on Mac) to paste the barcode");
+          }
+        });
       }
     });
   </script>
