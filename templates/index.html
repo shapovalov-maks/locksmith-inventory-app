@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Using ZXing library which is more reliable for various barcode formats -->
-  <script src="https://unpkg.com/@zxing/library@0.19.1"></script>
+  <!-- Use a simpler scanner library specifically designed for mobile -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -16,81 +16,47 @@
     button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
     button:hover { background-color: #0056b3; }
 
-    #scanner-container {
+    #reader-container {
       position: relative;
       width: 100%;
       max-width: 500px;
       margin: 20px auto;
       display: none;
+    }
+
+    #reader {
+      width: 100%;
+      border-radius: 6px;
       overflow: hidden;
-      height: 300px;
-      border-radius: 8px;
-      background-color: #000;
     }
 
-    #scanner-video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    #scanner-status {
+      text-align: center;
+      margin-top: 10px;
+      color: #666;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
     }
 
-    #scanner-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    .scan-region-highlight {
-      border: 2px solid rgba(255, 255, 255, 0.5);
-      position: absolute;
-      top: 25%;
-      left: 25%;
-      width: 50%;
-      height: 25%;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    .scan-region-highlight-svg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      fill: none;
-      stroke: #fff;
-      stroke-width: 2;
-    }
-
-    .code-outline {
-      position: absolute;
-      border: 3px solid #00ff00;
-      background: rgba(0, 255, 0, 0.2);
-      pointer-events: none;
-      z-index: 1000;
-      animation: pulse 1s infinite;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 0.5; }
-      50% { opacity: 1; }
-      100% { opacity: 0.5; }
-    }
-
-    #scanner-status { text-align: center; margin-top: 10px; color: #666; }
-    #scanner-loading {
+    #file-selector {
       display: none;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      background: rgba(0,0,0,0.8);
-      padding: 10px 20px;
-      border-radius: 20px;
-      z-index: 20;
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    #camera-permissions {
+      display: none;
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #fff3cd;
+      border-radius: 6px;
+      border: 1px solid #ffeeba;
+      color: #856404;
     }
 
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -99,8 +65,10 @@
     .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
 
     @media (max-width: 768px) {
-      #scanner-container {
-        height: 250px;
+      .camera-toggle-btn {
+        display: block;
+        width: 100%;
+        margin-top: 10px;
       }
     }
   </style>
@@ -119,18 +87,30 @@
     <label for="barcode">Barcode:</label>
     <div style="display: flex; gap: 8px;">
       <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
-      <button type="button" onclick="toggleScanner()">Scan</button>
+      <button type="button" onclick="startScanner()" style="width: auto; padding: 10px 15px;">Scan</button>
     </div>
 
-    <div id="scanner-container">
-      <video id="scanner-video" playsinline></video>
-      <canvas id="scanner-canvas"></canvas>
-      <div class="scan-region-highlight">
-        <svg class="scan-region-highlight-svg">
-          <rect x="0" y="0" width="100%" height="100%" rx="5"></rect>
-        </svg>
+    <div id="camera-permissions">
+      <p>Camera access is required to scan barcodes. Please ensure you've granted camera permissions to this site.</p>
+      <p>If you continue having issues, you can:</p>
+      <ol>
+        <li>Try using a different browser</li>
+        <li>Upload an image of the barcode instead</li>
+      </ol>
+      <button type="button" onclick="showFileSelector()" style="background-color: #6c757d;">Upload Barcode Image</button>
+    </div>
+
+    <div id="file-selector">
+      <label for="barcode-image">Select an image of the barcode:</label>
+      <input type="file" id="barcode-image" accept="image/*" style="border: none; padding: 10px 0;" onChange="scanBarcodeFromImage(this)">
+    </div>
+
+    <div id="reader-container">
+      <div id="reader"></div>
+      <div style="text-align: center; margin-top: 10px;">
+        <button type="button" class="camera-toggle-btn" onclick="toggleCamera()" style="background-color: #6c757d; width: auto; display: inline-block; padding: 8px 15px; margin: 0 5px;">Switch Camera</button>
+        <button type="button" class="camera-toggle-btn" onclick="stopScanner()" style="background-color: #dc3545; width: auto; display: inline-block; padding: 8px 15px; margin: 0 5px;">Close Scanner</button>
       </div>
-      <div id="scanner-loading">Loading camera...</div>
     </div>
     <div id="scanner-status"></div>
 
@@ -200,184 +180,190 @@
   {% endif %}
 
   <script>
-    let codeReader = null;
-    let selectedDeviceId = null;
-    let scanning = false;
+    let html5QrCode = null;
+    let currentCamera = 'environment'; // 'environment' = back camera, 'user' = front camera
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
       if (statusEl) {
         statusEl.textContent = message;
+        statusEl.style.display = message ? 'block' : 'none';
       }
     }
 
-    async function toggleScanner() {
-      const scannerContainer = document.getElementById("scanner-container");
-      const loadingEl = document.getElementById("scanner-loading");
+    function showFileSelector() {
+      document.getElementById('file-selector').style.display = 'block';
+      document.getElementById('camera-permissions').style.display = 'none';
+    }
 
-      // If already scanning, stop it
-      if (scanning) {
+    async function scanBarcodeFromImage(input) {
+      if (!input.files || !input.files[0]) return;
+
+      updateScannerStatus("Processing image...");
+
+      try {
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode("reader");
+        }
+
+        const imageFile = input.files[0];
+        const scanResult = await html5QrCode.scanFile(imageFile, true);
+
+        if (scanResult) {
+          document.getElementById("barcode").value = scanResult;
+          updateScannerStatus("Barcode detected: " + scanResult);
+          autoFillFromKnownCodes();
+          document.getElementById('file-selector').style.display = 'none';
+        }
+      } catch (error) {
+        console.error("Error scanning barcode from image:", error);
+        updateScannerStatus("Could not detect a barcode in the image. Try another image or enter the barcode manually.");
+      }
+    }
+
+    function startScanner() {
+      const readerContainer = document.getElementById('reader-container');
+      const statusEl = document.getElementById('scanner-status');
+
+      if (html5QrCode && html5QrCode.isScanning) {
         stopScanner();
         return;
       }
 
-      // Show scanner and loading indicator
-      scannerContainer.style.display = "block";
-      loadingEl.style.display = "block";
+      // Show scanner container
+      readerContainer.style.display = 'block';
       updateScannerStatus("Initializing scanner...");
 
-      try {
-        await initScanner();
-        loadingEl.style.display = "none";
-        updateScannerStatus("Camera ready. Point at a barcode to scan.");
-      } catch (error) {
-        console.error("Failed to initialize scanner:", error);
-        updateScannerStatus("Failed to start scanner: " + error.message);
-        scannerContainer.style.display = "none";
-        loadingEl.style.display = "none";
-        alert("Failed to initialize the barcode scanner: " + error.message);
+      // Initialize scanner object if not already created
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("reader");
       }
-    }
 
-    async function initScanner() {
-      // Create the code reader
-      codeReader = new ZXing.BrowserMultiFormatReader();
+      // Camera config
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.CODABAR
+        ]
+      };
 
-      try {
-        // Try to get the list of video devices
-        const videoInputDevices = await codeReader.listVideoInputDevices();
-        console.log('Video input devices:');
-        videoInputDevices.forEach(device =>
-          console.log(`${device.label}, ${device.deviceId}`)
-        );
+      // First try to get camera list
+      Html5Qrcode.getCameras()
+        .then(cameras => {
+          if (cameras && cameras.length > 0) {
+            // Start with the first camera (usually back camera on mobile)
+            const cameraId = cameras[0].id;
 
-        // Select the back camera if available
-        selectedDeviceId = videoInputDevices.find(device =>
-          device.label.toLowerCase().includes('back') ||
-          device.label.toLowerCase().includes('rear')
-        )?.deviceId || (videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : null);
-
-        if (!selectedDeviceId) {
-          throw new Error("No camera found");
-        }
-
-        const videoElement = document.getElementById('scanner-video');
-
-        // Start scanning
-        scanning = true;
-
-        // Decode continuously from the selected camera
-        await codeReader.decodeFromVideoDevice(
-          selectedDeviceId,
-          videoElement,
-          (result, error) => {
-            if (result) {
-              console.log("Barcode detected:", result.getText());
-
-              // Show outline around the detected barcode
-              highlightDetectedCode(result);
-
-              // Update status
-              updateScannerStatus("Barcode detected: " + result.getText());
-
-              // Update barcode input
-              document.getElementById("barcode").value = result.getText();
-
-              // Trigger autofill
-              autoFillFromKnownCodes();
-
-              // Stop scanning after successful detection
-              setTimeout(() => {
-                stopScanner();
-              }, 1000); // Wait a second to show the result before stopping
-
-            } else if (error) {
-              // Only log specific types of errors, ignore frequent scanning errors
-              if (error instanceof ZXing.NotFoundException) {
-                // This is normal, just searching for a barcode
-              } else {
-                console.error("Scanning error:", error);
-              }
-            }
+            // Start scanning
+            html5QrCode.start(
+              { facingMode: currentCamera },
+              config,
+              onScanSuccess,
+              onScanFailure
+            ).catch(err => {
+              console.error("Error starting scanner:", err);
+              document.getElementById('camera-permissions').style.display = 'block';
+              updateScannerStatus("Could not access camera. Check permissions.");
+            });
+          } else {
+            // No cameras found
+            console.error("No cameras found");
+            document.getElementById('camera-permissions').style.display = 'block';
+            updateScannerStatus("No cameras found on this device.");
           }
-        );
+        })
+        .catch(err => {
+          // Error getting cameras, likely permission issue
+          console.error("Error getting cameras:", err);
+          document.getElementById('camera-permissions').style.display = 'block';
+          updateScannerStatus("Could not access camera. Check permissions.");
+        });
+    }
 
-      } catch (error) {
-        scanning = false;
-        throw error;
+    function toggleCamera() {
+      if (html5QrCode && html5QrCode.isScanning) {
+        // Stop current scan
+        html5QrCode.stop().then(() => {
+          // Toggle camera
+          currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+
+          // Update status
+          updateScannerStatus("Switching camera...");
+
+          // Restart with new camera
+          const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 150 },
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.ITF,
+              Html5QrcodeSupportedFormats.CODABAR
+            ]
+          };
+
+          html5QrCode.start(
+            { facingMode: currentCamera },
+            config,
+            onScanSuccess,
+            onScanFailure
+          ).then(() => {
+            updateScannerStatus("Camera ready. Point at a barcode to scan.");
+          }).catch(err => {
+            console.error("Error starting scanner with new camera:", err);
+            updateScannerStatus("Error switching camera. Try again.");
+          });
+        }).catch(err => {
+          console.error("Error stopping scanner:", err);
+        });
       }
     }
 
-    function highlightDetectedCode(result) {
-      try {
-        // Remove any existing outlines
-        const existingOutlines = document.querySelectorAll('.code-outline');
-        existingOutlines.forEach(el => el.remove());
+    function onScanSuccess(decodedText, decodedResult) {
+      // Update UI
+      document.getElementById("barcode").value = decodedText;
+      updateScannerStatus("Barcode detected: " + decodedText);
 
-        // Get location points of the detected code
-        if (result.getResultPoints && result.getResultPoints().length >= 2) {
-          const points = result.getResultPoints();
+      // Auto-fill other fields
+      autoFillFromKnownCodes();
 
-          // Calculate the bounding box
-          let minX = Number.MAX_VALUE;
-          let minY = Number.MAX_VALUE;
-          let maxX = 0;
-          let maxY = 0;
+      // Stop scanner
+      stopScanner();
+    }
 
-          points.forEach(point => {
-            minX = Math.min(minX, point.getX());
-            minY = Math.min(minY, point.getY());
-            maxX = Math.max(maxX, point.getX());
-            maxY = Math.max(maxY, point.getY());
-          });
-
-          // Create outline element
-          const outline = document.createElement('div');
-          outline.className = 'code-outline';
-
-          // Get video element dimensions
-          const videoElement = document.getElementById('scanner-video');
-          const videoWidth = videoElement.videoWidth;
-          const videoHeight = videoElement.videoHeight;
-          const containerWidth = videoElement.offsetWidth;
-          const containerHeight = videoElement.offsetHeight;
-
-          // Scale coordinates to match the displayed video size
-          const scaleX = containerWidth / videoWidth;
-          const scaleY = containerHeight / videoHeight;
-
-          // Set the position and size
-          outline.style.left = `${minX * scaleX}px`;
-          outline.style.top = `${minY * scaleY}px`;
-          outline.style.width = `${(maxX - minX) * scaleX}px`;
-          outline.style.height = `${(maxY - minY) * scaleY}px`;
-
-          // Add the outline to the container
-          document.getElementById('scanner-container').appendChild(outline);
-        }
-      } catch (e) {
-        console.error("Error highlighting code:", e);
-        // Non-critical, so just log the error
-      }
+    function onScanFailure(error) {
+      // This is called frequently when no barcode is found, so we don't need to log every failure
+      // console.error("Scan failure:", error);
     }
 
     function stopScanner() {
-      if (codeReader) {
-        codeReader.reset();
-        codeReader = null;
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().then(() => {
+          // Clear status and hide scanner container
+          updateScannerStatus("");
+          document.getElementById('reader-container').style.display = 'none';
+        }).catch(err => {
+          console.error("Error stopping scanner:", err);
+        });
+      } else {
+        // Just hide container if not scanning
+        updateScannerStatus("");
+        document.getElementById('reader-container').style.display = 'none';
       }
-
-      // Hide the scanner container
-      document.getElementById("scanner-container").style.display = "none";
-
-      // Remove any outlines
-      const existingOutlines = document.querySelectorAll('.code-outline');
-      existingOutlines.forEach(el => el.remove());
-
-      // Update status
-      updateScannerStatus("");
-
-      scanning = false;
     }
 
     async function autoFillFromKnownCodes() {
@@ -399,6 +385,9 @@
       const form = document.getElementById("add-form");
       form.reset();
       document.getElementById("barcode").focus();
+      updateScannerStatus("");
+      document.getElementById('camera-permissions').style.display = 'none';
+      document.getElementById('file-selector').style.display = 'none';
     }
 
     document.getElementById("add-form").addEventListener("submit", function () {
@@ -408,7 +397,7 @@
     // Check if the site is loaded over HTTPS
     document.addEventListener('DOMContentLoaded', function() {
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-        alert("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
+        updateScannerStatus("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
       }
     });
   </script>
