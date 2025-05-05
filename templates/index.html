@@ -16,6 +16,62 @@
     button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
     button:hover { background-color: #0056b3; }
 
+    /* Header and search section */
+    .header-section {
+      background-color: #007bff;
+      padding: 15px 0;
+      margin-bottom: 20px;
+    }
+
+    .search-container {
+      max-width: 500px;
+      margin: auto;
+      display: flex;
+      gap: 10px;
+      padding: 0 20px;
+    }
+
+    .search-container input {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+    }
+
+    .search-container button {
+      margin-top: 0;
+      padding: 12px 20px;
+      width: auto;
+      background-color: #0056b3;
+    }
+
+    .search-filters {
+      max-width: 500px;
+      margin: 10px auto;
+      padding: 0 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .filter-btn {
+      background-color: #f0f0f0;
+      color: #333;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .filter-btn.active {
+      background-color: #007bff;
+      color: white;
+    }
+
+    /* Scanner container */
     #scanner-container {
       position: relative;
       width: 100%;
@@ -203,6 +259,61 @@
       margin-top: 10px;
     }
 
+    /* Product card */
+    .product-card {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+      display: none;
+    }
+
+    .product-card h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    .product-card .product-info {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .product-card .product-image {
+      width: 80px;
+      height: 80px;
+      background-color: #eee;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #aaa;
+    }
+
+    .product-card .product-details {
+      flex: 1;
+    }
+
+    .product-card .product-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .product-card .product-id {
+      font-size: 0.9em;
+      color: #6c757d;
+      margin-bottom: 5px;
+    }
+
+    .product-card .product-url {
+      font-size: 0.8em;
+      color: #007bff;
+      word-break: break-all;
+    }
+
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
     th { background-color: #007bff; color: #fff; }
@@ -216,20 +327,46 @@
   </style>
 </head>
 <body>
-  <h2>🔑 Locksmith Inventory</h2>
+  <!-- Улучшенная секция поиска -->
+  <div class="header-section">
+    <h2 style="color: white; margin: 0 0 15px 0;">🔑 Locksmith Inventory</h2>
 
-  <form method="get" action="/">
-    <div style="max-width: 500px; margin: auto; display: flex; gap: 10px; padding: 0 20px 20px;">
-      <input type="text" name="search" placeholder="Search..." value="{{ search or '' }}" style="flex: 1; padding: 10px; font-size: 16px;" />
-      <button type="submit" style="padding: 10px 20px;">Search</button>
-    </div>
-  </form>
+    <form method="get" action="/" class="search-form">
+      <div class="search-container">
+        <input type="text" name="search" id="header-search" placeholder="Search by barcode, type, make or model..." value="{{ search or '' }}" />
+        <button type="submit">Search</button>
+      </div>
+
+      <div class="search-filters">
+        <button type="button" class="filter-btn active" data-filter="all">All</button>
+        <button type="button" class="filter-btn" data-filter="fcc">FCC</button>
+        <button type="button" class="filter-btn" data-filter="chip">Chip</button>
+        <button type="button" class="filter-btn" data-filter="blade">Blade</button>
+        <button type="button" class="filter-btn" data-filter="universal">Universal</button>
+        <input type="hidden" name="filter" id="active-filter" value="all">
+      </div>
+    </form>
+  </div>
 
   <form id="add-form" action="/add" method="post">
     <label for="barcode">Barcode:</label>
     <div style="display: flex; gap: 8px;">
       <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
       <button type="button" onclick="showInputOptions()" style="width: auto; padding: 10px 15px;">Scan/Input</button>
+    </div>
+
+    <!-- Карточка продукта, которая появляется при сканировании ссылки -->
+    <div id="product-card" class="product-card">
+      <h3>Product Information</h3>
+      <div class="product-info">
+        <div class="product-image">🔑</div>
+        <div class="product-details">
+          <div class="product-title" id="product-title">Loading...</div>
+          <div class="product-id" id="product-id"></div>
+          <div class="product-url" id="product-url-display"></div>
+        </div>
+      </div>
+      <button type="button" onclick="openProductPage()" style="background-color: #28a745;">Open Product Page</button>
     </div>
 
     <div id="alternative-input">
@@ -265,9 +402,9 @@
       </div>
 
       <div class="input-method">
-        <label for="product-url">Enter Product URL:</label>
-        <input type="text" id="product-url" placeholder="https://www.locksmithkeyless.com/products/..." />
-        <button type="button" onclick="extractInfoFromURL()" style="background-color: #28a745;">Open Product Page</button>
+        <label for="product-url-input">Product URL:</label>
+        <input type="text" id="product-url-input" placeholder="https://www.locksmithkeyless.com/products/..." />
+        <button type="button" onclick="processProductURL()" style="background-color: #28a745;">Process Product URL</button>
       </div>
 
       <div class="input-method">
@@ -345,7 +482,7 @@
       </thead>
       <tbody>
         {% for key in keys %}
-          <tr>
+          <tr data-type="{{ key.type }}">
             <td>{{ key.barcode }}</td>
             <td>{{ key.fcc_id or '' }}</td>
             <td>{{ key.type }}</td>
@@ -407,6 +544,47 @@
     let scannerStarted = false;
     let currentCamera = 'environment';
     let detectedBarcodes = [];
+    let currentProductURL = null;
+
+    // Улучшенная функция фильтрации таблицы
+    document.addEventListener('DOMContentLoaded', function() {
+      // Настроить кнопки фильтрации
+      const filterButtons = document.querySelectorAll('.filter-btn');
+      filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Удалить класс active у всех кнопок
+          filterButtons.forEach(btn => btn.classList.remove('active'));
+
+          // Добавить класс active текущей кнопке
+          this.classList.add('active');
+
+          // Установить значение фильтра
+          const filterValue = this.getAttribute('data-filter');
+          document.getElementById('active-filter').value = filterValue;
+
+          // Фильтровать таблицу, если она существует
+          const tableRows = document.querySelectorAll('table tbody tr');
+          if (tableRows.length > 0) {
+            tableRows.forEach(row => {
+              if (filterValue === 'all' || row.getAttribute('data-type') === filterValue) {
+                row.style.display = '';
+              } else {
+                row.style.display = 'none';
+              }
+            });
+          }
+        });
+      });
+
+      // Показать раздел опций ввода при загрузке страницы
+      showInputOptions();
+
+      // Проверить, загружена ли библиотека Quagga
+      if (typeof Quagga === 'undefined') {
+        console.error("QuaggaJS library not loaded!");
+        updateScannerStatus("Error: QuaggaJS library not loaded. Check your internet connection.");
+      }
+    });
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -463,19 +641,68 @@
       document.getElementById('product-info').style.display = 'block';
     }
 
-    function extractInfoFromURL() {
-      const url = document.getElementById('product-url').value.trim();
+    // Обработка URL продукта из формы
+    function processProductURL() {
+      const url = document.getElementById('product-url-input').value.trim();
       if (!url) {
         updateScannerStatus("Please enter a product URL.");
         return;
       }
 
-      // Открыть URL в новой вкладке
-      window.open(url, '_blank');
+      // Обновляем URL и отображаем карточку продукта
+      currentProductURL = url;
+      updateProductCard(url);
+    }
 
-      // Показать поле для ввода информации о товаре
-      showProductInfoField();
-      updateScannerStatus("Product page opened. Copy product information and paste it into the text field below.");
+    // Открыть страницу продукта
+    function openProductPage() {
+      if (currentProductURL) {
+        window.open(currentProductURL, '_blank');
+      } else {
+        updateScannerStatus("No product URL available.");
+      }
+    }
+
+    // Обновить карточку продукта
+    function updateProductCard(url) {
+      const productCard = document.getElementById('product-card');
+      const productTitle = document.getElementById('product-title');
+      const productId = document.getElementById('product-id');
+      const productUrlDisplay = document.getElementById('product-url-display');
+
+      // Попытаемся извлечь информацию из URL
+      // Например, для URL вида https://www.locksmithkeyless.com/products/2023-hyundai-kia-remote-flip-key-blade
+      try {
+        // Показываем карточку продукта
+        productCard.style.display = 'block';
+
+        // Обновляем информацию
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+
+        if (pathParts.length > 2 && pathParts[1] === 'products') {
+          const productSlug = pathParts[2];
+          const productName = productSlug.split('-').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' ');
+
+          productTitle.textContent = productName;
+          productId.textContent = `From: ${urlObj.hostname}`;
+          productUrlDisplay.textContent = url;
+
+          // Обновляем поле формы
+          document.getElementById('product-url-input').value = url;
+        } else {
+          productTitle.textContent = "Product";
+          productId.textContent = urlObj.hostname;
+          productUrlDisplay.textContent = url;
+        }
+      } catch (error) {
+        console.error("Error parsing URL:", error);
+        productTitle.textContent = "Product";
+        productId.textContent = "";
+        productUrlDisplay.textContent = url;
+      }
     }
 
     function processProductInfo() {
@@ -495,6 +722,9 @@
       // Примем любые алфавитно-цифровые последовательности длиной 7-14 символов как возможные артикулы
       const anyCodeMatches = productInfo.match(/\b([A-Za-z0-9-]{7,14})\b/);
 
+      // Ищем URL продукта
+      const urlMatches = productInfo.match(/(https?:\/\/[^\s]+)/g);
+
       // Используем найденный код в порядке приоритета
       let barcode = null;
       if (skuMatches && skuMatches[1]) {
@@ -503,6 +733,12 @@
         barcode = barcodeMatches[1];
       } else if (anyCodeMatches && anyCodeMatches[1]) {
         barcode = anyCodeMatches[1];
+      }
+
+      // Если нашли URL продукта, обновляем карточку
+      if (urlMatches && urlMatches.length > 0) {
+        currentProductURL = urlMatches[0];
+        updateProductCard(currentProductURL);
       }
 
       if (barcode) {
@@ -579,10 +815,69 @@
             return;
           }
 
-          // Проверить, что это не URL или длинный текст
           const code = result.codeResult.code;
-          if (code.startsWith('http') || code.length > 30) {
-            console.log("Skipping URL or long text:", code);
+
+          // Проверить, является ли код URL-адресом
+          if (code.startsWith('http') && code.length > 15) {
+            console.log("URL detected:", code);
+
+            // Обработка URL как ссылки на продукт
+            currentProductURL = code;
+            stopScanner();
+
+            // Обновить карточку продукта
+            updateProductCard(code);
+
+            // Извлечь идентификатор продукта из URL
+            try {
+              const urlObj = new URL(code);
+              const pathParts = urlObj.pathname.split('/');
+
+              if (pathParts.length > 2 && pathParts[1] === 'products') {
+                // Для URL вида https://www.locksmithkeyless.com/products/2023-hyundai-kia-remote-flip-key-blade
+                const productSlug = pathParts[2];
+
+                // Извлекаем числовую часть или последние 7-12 символов как возможный артикул
+                const numericMatch = productSlug.match(/\d+/);
+                if (numericMatch) {
+                  document.getElementById("barcode").value = numericMatch[0];
+                } else {
+                  // Если нет числовой части, используем последние 7-12 символов
+                  const slugParts = productSlug.split('-');
+                  if (slugParts.length > 0) {
+                    document.getElementById("barcode").value = slugParts[slugParts.length - 1];
+                  }
+                }
+
+                // Определяем тип продукта по ключевым словам в URL
+                if (productSlug.includes('chip') || productSlug.includes('smart') || productSlug.includes('electronic')) {
+                  document.getElementById("type").value = "chip";
+                } else if (productSlug.includes('blade') || productSlug.includes('key-blade')) {
+                  document.getElementById("type").value = "blade";
+                } else if (productSlug.includes('remote') || productSlug.includes('fcc')) {
+                  document.getElementById("type").value = "fcc";
+                } else if (productSlug.includes('universal')) {
+                  document.getElementById("type").value = "universal";
+                }
+
+                // Попытаемся создать описание из URL
+                const description = productSlug.split('-').map(word =>
+                  word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
+
+                document.getElementById("description").value = description;
+              }
+            } catch (e) {
+              console.error("Error parsing URL:", e);
+            }
+
+            updateScannerStatus("Product URL detected. Check product information.");
+            return;
+          }
+
+          // Игнорировать слишком длинные коды, которые могут быть текстом, но не URL
+          if (code.length > 30) {
+            console.log("Skipping long text:", code);
             return;
           }
 
@@ -746,9 +1041,42 @@
             if (result && result.codeResult) {
               const code = result.codeResult.code;
 
-              // Проверить, что это не URL или длинный текст
-              if (code.startsWith('http') || code.length > 30) {
-                updateScannerStatus("URL detected in image, not a barcode. Please try another image.");
+              // Проверить, является ли код URL-адресом
+              if (code.startsWith('http') && code.length > 15) {
+                // Обработка URL как ссылки на продукт
+                currentProductURL = code;
+
+                // Обновить карточку продукта
+                updateProductCard(code);
+
+                // Автоматически пытаемся извлечь артикул из URL
+                try {
+                  const urlObj = new URL(code);
+                  const pathParts = urlObj.pathname.split('/');
+
+                  if (pathParts.length > 2 && pathParts[1] === 'products') {
+                    const productSlug = pathParts[2];
+
+                    // Извлекаем числовую часть как возможный артикул
+                    const numericMatch = productSlug.match(/\d+/);
+                    if (numericMatch) {
+                      document.getElementById("barcode").value = numericMatch[0];
+                    }
+                  }
+                } catch (e) {
+                  console.error("Error parsing URL:", e);
+                }
+
+                updateScannerStatus("Product URL detected in image. Check product information.");
+
+                // Скрыть загрузчик файлов
+                document.getElementById('file-input-container').style.display = 'none';
+                return;
+              }
+
+              // Проверить, что это не слишком длинный текст
+              if (code.length > 30) {
+                updateScannerStatus("Long text detected in image, not a barcode. Please try another image.");
                 return;
               }
 
@@ -801,23 +1129,14 @@
       document.getElementById('file-input-container').style.display = 'none';
       document.getElementById('product-info').style.display = 'none';
       document.getElementById('scan-results').style.display = 'none';
+      document.getElementById('product-card').style.display = 'none';
+      currentProductURL = null;
       showLoader(false);
       updateScannerStatus("");
     }
 
     document.getElementById("add-form").addEventListener("submit", function() {
       setTimeout(() => clearForm(), 200);
-    });
-
-    // Проверить, доступна ли библиотека QuaggaJS
-    document.addEventListener('DOMContentLoaded', function() {
-      if (typeof Quagga === 'undefined') {
-        console.error("QuaggaJS library not loaded!");
-        updateScannerStatus("Error: QuaggaJS library not loaded. Check your internet connection.");
-      }
-
-      // Показать раздел опций ввода при загрузке страницы
-      showInputOptions();
     });
   </script>
 </body>
