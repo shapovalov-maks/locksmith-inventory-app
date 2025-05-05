@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- ZBar WebAssembly library (simplest, most compatible approach) -->
-  <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/dist/index.js"></script>
+  <!-- Include jsQR library -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -40,14 +40,18 @@
 
     .scan-region {
       position: absolute;
-      left: 15%;
+      left: 25%;
       top: 25%;
-      width: 70%;
-      height: 35%;
-      border: 2px solid rgba(255, 255, 255, 0.8);
-      border-radius: 10px;
+      width: 50%;
+      height: 25%;
+      border: 2px solid rgba(255, 255, 255, 0.5);
       box-sizing: border-box;
       pointer-events: none;
+    }
+
+    #fallback-file-input {
+      display: none;
+      margin-top: 20px;
     }
 
     #scanner-status {
@@ -70,37 +74,6 @@
     .scanner-controls button {
       width: 48%;
       margin-top: 10px;
-    }
-
-    /* Fallback file input for when camera access fails */
-    #file-input-container {
-      display: none;
-      margin-top: 15px;
-      padding: 15px;
-      background-color: #f8f9fa;
-      border-radius: 6px;
-      border: 1px solid #eee;
-    }
-
-    /* Loading indicator */
-    .loader {
-      border: 5px solid #f3f3f3;
-      border-top: 5px solid #007bff;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      margin-top: -20px;
-      margin-left: -20px;
-      display: none;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
     }
 
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -129,14 +102,13 @@
     <label for="barcode">Barcode:</label>
     <div style="display: flex; gap: 8px;">
       <input type="text" id="barcode" name="barcode" required oninput="autoFillFromKnownCodes()" />
-      <button type="button" onclick="initializeZbarAndStartScanner()" style="width: auto; padding: 10px 15px;">Scan</button>
+      <button type="button" onclick="startScanner()" style="width: auto; padding: 10px 15px;">Scan</button>
     </div>
 
     <div id="scanner-container">
-      <video id="video" playsinline autoplay muted></video>
+      <video id="video" playsinline autoplay></video>
       <canvas id="canvas" style="display:none;"></canvas>
       <div class="scan-region"></div>
-      <div class="loader" id="scanner-loader"></div>
 
       <div class="scanner-controls">
         <button type="button" onclick="toggleCamera()" style="background-color: #6c757d;">Switch Camera</button>
@@ -144,9 +116,9 @@
       </div>
     </div>
 
-    <div id="file-input-container">
+    <div id="fallback-file-input">
       <label for="barcode-image">Upload an image with a barcode:</label>
-      <input type="file" id="barcode-image" accept="image/*" capture="environment" onChange="scanImageWithZbar(this)">
+      <input type="file" id="barcode-image" accept="image/*" capture="environment" onChange="processImageFile(this)">
     </div>
 
     <div id="scanner-status"></div>
@@ -221,7 +193,6 @@
     let isScanning = false;
     let scanInterval = null;
     let currentCamera = 'environment'; // 'environment' = back camera, 'user' = front camera
-    let zbarScanner = null;
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -231,37 +202,10 @@
       }
     }
 
-    function showLoader(show) {
-      document.getElementById('scanner-loader').style.display = show ? 'block' : 'none';
-    }
-
-    // Initialize ZBar WebAssembly and start scanner
-    async function initializeZbarAndStartScanner() {
-      updateScannerStatus("Initializing barcode scanner...");
-      showLoader(true);
-
-      try {
-        // Initialize ZBar if not already done
-        if (!zbarScanner) {
-          // Create an instance of ZBar scanner (uses WebAssembly)
-          zbarScanner = await zbarWasm();
-          console.log("ZBar initialized successfully");
-        }
-
-        // Now start the camera
-        startCameraScanner();
-      } catch (error) {
-        console.error("Failed to initialize ZBar:", error);
-        updateScannerStatus("Error initializing barcode scanner. Please try the file upload option.");
-        document.getElementById('file-input-container').style.display = 'block';
-        showLoader(false);
-      }
-    }
-
-    async function startCameraScanner() {
+    async function startScanner() {
       // Show the scanner container
       document.getElementById('scanner-container').style.display = 'block';
-      updateScannerStatus("Accessing camera...");
+      updateScannerStatus("Initializing camera...");
 
       try {
         // Access the camera
@@ -287,66 +231,55 @@
           canvasElement.width = videoElement.videoWidth;
           canvasElement.height = videoElement.videoHeight;
 
-          // Hide loader and update status
-          showLoader(false);
           updateScannerStatus("Camera ready. Point at a barcode to scan.");
-
-          // Start scanning for barcodes
           isScanning = true;
-          scanWithZbar();
+          scanForCodes();
         };
 
       } catch (error) {
         console.error("Error accessing camera:", error);
         document.getElementById('scanner-container').style.display = 'none';
-        document.getElementById('file-input-container').style.display = 'block';
+        document.getElementById('fallback-file-input').style.display = 'block';
         updateScannerStatus("Could not access camera. You can upload an image instead.");
-        showLoader(false);
       }
     }
 
-    function scanWithZbar() {
-      if (!isScanning || !zbarScanner) return;
+    function scanForCodes() {
+      if (!isScanning) return;
 
       const videoElement = document.getElementById('video');
       const canvasElement = document.getElementById('canvas');
       const canvas = canvasElement.getContext('2d');
 
       // Set up interval to scan video frames
-      scanInterval = setInterval(async () => {
+      scanInterval = setInterval(() => {
         if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-          try {
-            // Draw the video frame to the canvas
-            canvas.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+          // Draw the video frame to the canvas
+          canvas.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
-            // Get image data for processing
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+          // Get image data for processing
+          const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
 
-            // Scan for barcodes using ZBar
-            const symbols = await zbarScanner.scanImage(imageData);
+          // Process the image data with jsQR
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert", // Try without inverting first
+          });
 
-            if (symbols && symbols.length > 0) {
-              // Found at least one barcode
-              console.log("Barcodes found:", symbols);
+          if (code) {
+            console.log("QR/Barcode found:", code.data);
 
-              // Use the first detected barcode
-              const barcode = symbols[0];
+            // Stop scanning
+            stopScanner();
 
-              // Stop scanning
-              stopScanner();
+            // Update barcode input
+            document.getElementById("barcode").value = code.data;
+            updateScannerStatus("Barcode detected: " + code.data);
 
-              // Update barcode input
-              document.getElementById("barcode").value = barcode.decode();
-              updateScannerStatus("Barcode detected: " + barcode.decode() + " (Type: " + barcode.type + ")");
-
-              // Try to auto-fill other fields
-              autoFillFromKnownCodes();
-            }
-          } catch (error) {
-            console.error("Error scanning for barcodes:", error);
+            // Try to auto-fill other fields
+            autoFillFromKnownCodes();
           }
         }
-      }, 200); // Scan every 200ms to reduce CPU usage
+      }, 100); // Scan every 100ms
     }
 
     async function toggleCamera() {
@@ -363,10 +296,6 @@
 
         // Toggle camera type
         currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
-
-        // Show loader while switching
-        showLoader(true);
-        updateScannerStatus("Switching camera...");
 
         try {
           // Start new video stream with toggled camera
@@ -392,18 +321,13 @@
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
 
-            // Hide loader
-            showLoader(false);
             updateScannerStatus(`Using ${currentCamera === 'environment' ? 'back' : 'front'} camera. Point at a barcode to scan.`);
-
-            // Start scanning again
             isScanning = true;
-            scanWithZbar();
+            scanForCodes();
           };
         } catch (error) {
           console.error("Error toggling camera:", error);
-          showLoader(false);
-          updateScannerStatus("Error switching camera. Please try again.");
+          updateScannerStatus("Error switching camera.");
         }
       }
     }
@@ -421,92 +345,71 @@
         videoStream = null;
       }
 
-      // Hide scanner container and loader
+      // Hide scanner container
       document.getElementById('scanner-container').style.display = 'none';
-      showLoader(false);
       isScanning = false;
     }
 
-    async function scanImageWithZbar(input) {
+    function processImageFile(input) {
       if (!input.files || !input.files[0]) return;
 
       updateScannerStatus("Processing image...");
 
-      try {
-        // Initialize ZBar if not already done
-        if (!zbarScanner) {
-          // Show loader
-          showLoader(true);
+      const file = input.files[0];
+      const reader = new FileReader();
 
-          // Create an instance of ZBar scanner (uses WebAssembly)
-          zbarScanner = await zbarWasm();
-          console.log("ZBar initialized successfully");
+      reader.onload = function(e) {
+        // Create an image element to load the file
+        const img = new Image();
+        img.src = e.target.result;
 
-          // Hide loader
-          showLoader(false);
-        }
+        img.onload = function() {
+          // Create a canvas to draw the image
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
 
-        // Read the file
-        const file = input.files[0];
-        const reader = new FileReader();
+          // Set canvas size to image size
+          canvas.width = img.width;
+          canvas.height = img.height;
 
-        reader.onload = function(e) {
-          // Create an image to load the file
-          const img = new Image();
-          img.src = e.target.result;
+          // Draw image to canvas
+          ctx.drawImage(img, 0, 0);
 
-          img.onload = async function() {
-            // Create a canvas to draw the image
-            const canvasElement = document.getElementById('canvas');
-            canvasElement.width = img.width;
-            canvasElement.height = img.height;
+          // Get image data for processing
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-            const context = canvasElement.getContext('2d');
-            context.drawImage(img, 0, 0, img.width, img.height);
+          // Try different attempts to read the barcode
+          // First try without inversion
+          let code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert"
+          });
 
-            // Get image data for processing
-            const imageData = context.getImageData(0, 0, canvasElement.width, canvasElement.height);
+          // If no code found, try with inversion
+          if (!code) {
+            code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "invertFirst"
+            });
+          }
 
-            try {
-              // Scan for barcodes using ZBar
-              const symbols = await zbarScanner.scanImage(imageData);
+          if (code) {
+            console.log("Barcode detected in image:", code.data);
 
-              if (symbols && symbols.length > 0) {
-                // Found at least one barcode
-                console.log("Barcodes found in image:", symbols);
+            // Update barcode input
+            document.getElementById("barcode").value = code.data;
+            updateScannerStatus("Barcode detected: " + code.data);
 
-                // Use the first detected barcode
-                const barcode = symbols[0];
+            // Try to auto-fill other fields
+            autoFillFromKnownCodes();
 
-                // Update barcode input
-                document.getElementById("barcode").value = barcode.decode();
-                updateScannerStatus("Barcode detected in image: " + barcode.decode() + " (Type: " + barcode.type + ")");
-
-                // Try to auto-fill other fields
-                autoFillFromKnownCodes();
-
-                // Hide file input
-                document.getElementById('file-input-container').style.display = 'none';
-              } else {
-                updateScannerStatus("No barcode detected in the image. Try another image or enter the barcode manually.");
-              }
-            } catch (error) {
-              console.error("Error scanning image:", error);
-              updateScannerStatus("Error scanning the image. Please try another image.");
-            }
-          };
-
-          img.onerror = function() {
-            updateScannerStatus("Error loading image. Please try another image.");
-          };
+            // Hide file input
+            document.getElementById('fallback-file-input').style.display = 'none';
+          } else {
+            updateScannerStatus("No barcode detected in the image. Try another image or enter the barcode manually.");
+          }
         };
+      };
 
-        reader.readAsDataURL(file);
-
-      } catch (error) {
-        console.error("Error processing image:", error);
-        updateScannerStatus("Error processing image. Please try again.");
-      }
+      reader.readAsDataURL(file);
     }
 
     async function autoFillFromKnownCodes() {
@@ -529,8 +432,7 @@
       form.reset();
       document.getElementById("barcode").focus();
       document.getElementById('scanner-container').style.display = 'none';
-      document.getElementById('file-input-container').style.display = 'none';
-      showLoader(false);
+      document.getElementById('fallback-file-input').style.display = 'none';
       updateScannerStatus("");
     }
 
@@ -538,17 +440,17 @@
       setTimeout(() => clearForm(), 200);
     });
 
-    // Check required browser features on page load
+    // Check for camera access on page load
     document.addEventListener('DOMContentLoaded', function() {
       // Check if running on HTTPS
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
         updateScannerStatus("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
       }
 
-      // Check if WebAssembly is supported
-      if (typeof WebAssembly !== 'object') {
-        console.error("WebAssembly is not supported in this browser");
-        updateScannerStatus("Warning: Your browser may not support all features required for barcode scanning.");
+      // Check if jsQR is loaded
+      if (typeof jsQR !== 'function') {
+        console.error("jsQR library not loaded");
+        updateScannerStatus("Error: Barcode scanning library not loaded. Please check your internet connection.");
       }
     });
   </script>
