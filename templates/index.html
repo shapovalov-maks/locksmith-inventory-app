@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -14,7 +15,7 @@
     button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
     button:hover { background-color: #0056b3; }
 
-    #video-container {
+    #scanner-container {
       position: relative;
       width: 100%;
       max-width: 500px;
@@ -26,33 +27,33 @@
       background-color: #000;
     }
 
-    #scanner-video {
+    #interactive.viewport {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      position: relative;
     }
 
-    .scan-region-highlight {
-      position: absolute;
-      top: 35%;
-      left: 15%;
-      width: 70%;
-      height: 30%;
-      border: 2px solid #fff;
-      border-radius: 8px;
-      box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.3);
+    #interactive.viewport > canvas, #interactive.viewport > video {
+      max-width: 100%;
+      width: 100%;
     }
 
-    .scan-region-highlight-svg {
+    .drawingBuffer {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
-      fill: none;
     }
 
-    #scanner-status { text-align: center; margin-top: 10px; color: #666; font-size: 14px; }
+    #scanner-status { text-align: center; margin-top: 10px; color: #666; }
+    #scanner-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 10;
+    }
     #scanner-loading {
       display: none;
       position: absolute;
@@ -66,36 +67,15 @@
       z-index: 20;
     }
 
-    .pulse {
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0% { opacity: 0.5; }
-      50% { opacity: 1; }
-      100% { opacity: 0.5; }
-    }
-
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
     th { background-color: #007bff; color: #fff; }
     .delete-btn { background-color: #dc3545; color: white; border: none; padding: 6px 10px; font-size: 14px; border-radius: 4px; cursor: pointer; }
 
     @media (max-width: 768px) {
-      #video-container {
+      #scanner-container {
         height: 250px;
       }
-    }
-
-    /* Fallback message for browsers that don't support BarcodeDetector */
-    .fallback-message {
-      display: none;
-      text-align: center;
-      margin: 10px 0;
-      padding: 10px;
-      background-color: #fff3cd;
-      color: #856404;
-      border-radius: 6px;
     }
   </style>
 </head>
@@ -116,18 +96,8 @@
       <button type="button" onclick="toggleScanner()">Scan</button>
     </div>
 
-    <div class="fallback-message" id="fallback-message">
-      Your browser doesn't support the BarcodeDetector API.
-      Consider using Chrome, Edge, or other Chromium-based browsers for barcode scanning.
-    </div>
-
-    <div id="video-container">
-      <video id="scanner-video" playsinline autoplay></video>
-      <div class="scan-region-highlight">
-        <svg class="scan-region-highlight-svg">
-          <rect x="0" y="0" width="100%" height="100%" stroke="#fff" stroke-width="2" rx="8" class="pulse"></rect>
-        </svg>
-      </div>
+    <div id="scanner-container">
+      <div id="interactive" class="viewport"></div>
       <div id="scanner-loading">Loading camera...</div>
     </div>
     <div id="scanner-status"></div>
@@ -198,10 +168,7 @@
   {% endif %}
 
   <script>
-    let videoStream = null;
-    let barcodeDetector = null;
-    let isScanning = false;
-    let scanInterval = null;
+    let quaggaScanner = null;
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -210,154 +177,112 @@
       }
     }
 
-    // Check if BarcodeDetector is supported
-    async function checkBarcodeDetectorSupport() {
-      if (!('BarcodeDetector' in window)) {
-        document.getElementById('fallback-message').style.display = 'block';
-        return false;
-      }
-
-      try {
-        // Check supported formats
-        const formats = await BarcodeDetector.getSupportedFormats();
-        console.log("Supported barcode formats:", formats);
-        return formats.length > 0;
-      } catch (error) {
-        console.error("Error checking BarcodeDetector support:", error);
-        document.getElementById('fallback-message').style.display = 'block';
-        return false;
-      }
-    }
-
     async function toggleScanner() {
-      const videoContainer = document.getElementById("video-container");
+      const scannerContainer = document.getElementById("scanner-container");
       const loadingEl = document.getElementById("scanner-loading");
 
-      // If already scanning, stop it
-      if (isScanning) {
-        stopScanner();
-        return;
-      }
-
-      // Check if BarcodeDetector is supported
-      const isSupported = await checkBarcodeDetectorSupport();
-      if (!isSupported) {
-        alert("Your browser doesn't support the barcode scanning functionality. Please use Chrome, Edge, or another Chromium-based browser.");
+      // If scanner is active, stop it
+      if (quaggaScanner) {
+        try {
+          Quagga.stop();
+          quaggaScanner = null;
+          scannerContainer.style.display = "none";
+          updateScannerStatus("");
+        } catch (e) {
+          console.error("Error stopping scanner:", e);
+        }
         return;
       }
 
       // Show scanner and loading indicator
-      videoContainer.style.display = "block";
+      scannerContainer.style.display = "block";
       loadingEl.style.display = "block";
-      updateScannerStatus("Initializing camera...");
+      updateScannerStatus("Initializing scanner...");
 
       try {
-        // Initialize the BarcodeDetector
-        barcodeDetector = new BarcodeDetector({
-          formats: [
-            'code_128',
-            'code_39',
-            'code_93',
-            'ean_13',
-            'ean_8',
-            'upc_a',
-            'upc_e',
-            'itf',
-            'codabar'
-          ]
-        });
-
-        // Access the camera
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment", // Use the back camera for mobile devices
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-
-        const videoElement = document.getElementById("scanner-video");
-        videoElement.srcObject = videoStream;
-
-        // Wait for video to be ready
-        await new Promise(resolve => {
-          videoElement.onloadedmetadata = () => {
-            resolve();
-          };
-        });
-
-        // Start playing the video
-        await videoElement.play();
-
-        // Hide loading indicator
+        await initQuagga();
         loadingEl.style.display = "none";
-        updateScannerStatus("Camera ready. Point at a barcode to scan...");
-
-        // Start scanning for barcodes
-        isScanning = true;
-        scanForBarcodes();
-
+        updateScannerStatus("Camera ready. Point at a barcode to scan.");
       } catch (error) {
-        console.error("Error starting scanner:", error);
-        stopScanner();
+        console.error("Failed to initialize scanner:", error);
         updateScannerStatus("Failed to start scanner: " + error.message);
-        alert("Failed to start scanner: " + error.message);
+        scannerContainer.style.display = "none";
+        loadingEl.style.display = "none";
+        alert("Failed to initialize the barcode scanner: " + error.message);
       }
     }
 
-    function scanForBarcodes() {
-      if (!isScanning) return;
-
-      const videoElement = document.getElementById("scanner-video");
-
-      // Set up interval to scan video frames
-      scanInterval = setInterval(async () => {
-        if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-          try {
-            // Detect barcodes in the current video frame
-            const barcodes = await barcodeDetector.detect(videoElement);
-
-            if (barcodes.length > 0) {
-              // We found at least one barcode
-              const barcode = barcodes[0]; // Use the first detected barcode
-              console.log("Barcode detected:", barcode);
-
-              // Stop scanning
-              stopScanner();
-
-              // Update barcode input
-              document.getElementById("barcode").value = barcode.rawValue;
-              updateScannerStatus("Barcode detected: " + barcode.rawValue);
-
-              // Try to auto-fill other fields
-              autoFillFromKnownCodes();
-            }
-          } catch (error) {
-            console.error("Error detecting barcode:", error);
+    function initQuagga() {
+      return new Promise((resolve, reject) => {
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector("#interactive"),
+            constraints: {
+              facingMode: "environment", // Use the back camera
+            },
+            area: { // Only read barcodes in the center of the video stream
+              top: "25%",
+              right: "10%",
+              left: "10%",
+              bottom: "25%",
+            },
+          },
+          decoder: {
+            readers: [
+              "code_128_reader",
+              "ean_reader",
+              "ean_8_reader",
+              "code_39_reader",
+              "code_93_reader",
+              "upc_reader",
+              "upc_e_reader"
+            ],
+            debug: {
+              drawBoundingBox: true,
+              showFrequency: false,
+              drawScanline: true,
+              showPattern: false
+            },
+            multiple: false
+          },
+          locator: {
+            patchSize: "medium",
+            halfSample: true
+          },
+          locate: true
+        }, function(err) {
+          if (err) {
+            reject(err);
+            return;
           }
-        }
-      }, 100); // Scan every 100ms
-    }
 
-    function stopScanner() {
-      // Clear the scanning interval
-      if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
-      }
+          quaggaScanner = true;
 
-      // Stop the video stream
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-      }
+          Quagga.start();
+          resolve();
 
-      // Hide the video container
-      document.getElementById("video-container").style.display = "none";
+          // Register callback for successful detection
+          Quagga.onDetected(function(result) {
+            if (result && result.codeResult) {
+              const code = result.codeResult.code;
+              console.log("Barcode detected:", code);
+              updateScannerStatus("Barcode detected: " + code);
 
-      // Update status
-      isScanning = false;
-      updateScannerStatus("");
+              // Fill the barcode input and trigger autofill
+              document.getElementById("barcode").value = code;
+              autoFillFromKnownCodes();
+
+              // Stop scanner
+              Quagga.stop();
+              quaggaScanner = null;
+              document.getElementById("scanner-container").style.display = "none";
+              updateScannerStatus("");
+            }
+          });
+        });
+      });
     }
 
     async function autoFillFromKnownCodes() {
@@ -390,9 +315,6 @@
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
         alert("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
       }
-
-      // Check BarcodeDetector support
-      checkBarcodeDetectorSupport();
     });
   </script>
 </body>
