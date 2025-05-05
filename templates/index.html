@@ -67,6 +67,54 @@
       z-index: 20;
     }
 
+    #debug-canvas {
+      display: none;
+      width: 100%;
+      max-width: 500px;
+      margin: 10px auto;
+      border: 1px solid #ccc;
+    }
+
+    #debug-info {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 10px;
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .detected-barcode {
+      border: 2px solid #00ff00;
+      background: rgba(0, 255, 0, 0.2);
+      position: absolute;
+      z-index: 20;
+    }
+
+    .format-selector {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    .format-selector label {
+      font-weight: normal;
+      display: inline-block;
+      margin-right: 10px;
+      margin-top: 5px;
+    }
+
+    .format-selector input[type="checkbox"] {
+      width: auto;
+      margin-right: 5px;
+    }
+
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
     th { background-color: #007bff; color: #fff; }
@@ -101,6 +149,32 @@
       <div id="scanner-loading">Loading camera...</div>
     </div>
     <div id="scanner-status"></div>
+
+    <div id="debug-info"></div>
+    <canvas id="debug-canvas"></canvas>
+
+    <div class="format-selector">
+      <h4 style="margin-top: 0;">Barcode Formats:</h4>
+      <div style="display: flex; flex-wrap: wrap;">
+        <label><input type="checkbox" class="format-checkbox" value="code_128_reader" checked> Code 128</label>
+        <label><input type="checkbox" class="format-checkbox" value="ean_reader" checked> EAN</label>
+        <label><input type="checkbox" class="format-checkbox" value="ean_8_reader" checked> EAN-8</label>
+        <label><input type="checkbox" class="format-checkbox" value="code_39_reader" checked> Code 39</label>
+        <label><input type="checkbox" class="format-checkbox" value="code_93_reader" checked> Code 93</label>
+        <label><input type="checkbox" class="format-checkbox" value="upc_reader" checked> UPC</label>
+        <label><input type="checkbox" class="format-checkbox" value="upc_e_reader" checked> UPC-E</label>
+        <label><input type="checkbox" class="format-checkbox" value="i2of5_reader"> Interleaved 2 of 5</label>
+        <label><input type="checkbox" class="format-checkbox" value="2of5_reader"> Standard 2 of 5</label>
+        <label><input type="checkbox" class="format-checkbox" value="codabar_reader"> Codabar</label>
+      </div>
+    </div>
+
+    <div style="margin-top: 10px;">
+      <label for="debug-mode" style="display: inline-block; font-weight: normal;">
+        <input type="checkbox" id="debug-mode" style="width: auto; margin-right: 5px;">
+        Debug Mode
+      </label>
+    </div>
 
     <label for="type">Type:</label>
     <select name="type" id="type">
@@ -169,6 +243,10 @@
 
   <script>
     let quaggaScanner = null;
+    let scanAttempts = 0;
+    let previousResults = [];
+    const MAX_SCAN_ATTEMPTS = 15;
+    const REQUIRED_MATCHES = 3; // Number of matching results required
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -177,9 +255,27 @@
       }
     }
 
+    function debugLog(message) {
+      const debugInfo = document.getElementById("debug-info");
+      if (debugInfo && document.getElementById("debug-mode").checked) {
+        const entry = document.createElement("div");
+        entry.textContent = message;
+        debugInfo.appendChild(entry);
+        debugInfo.scrollTop = debugInfo.scrollHeight;
+      }
+    }
+
+    // Get selected barcode formats
+    function getSelectedFormats() {
+      const checkboxes = document.querySelectorAll('.format-checkbox:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
     async function toggleScanner() {
       const scannerContainer = document.getElementById("scanner-container");
       const loadingEl = document.getElementById("scanner-loading");
+      const debugInfo = document.getElementById("debug-info");
+      const debugCanvas = document.getElementById("debug-canvas");
 
       // If scanner is active, stop it
       if (quaggaScanner) {
@@ -187,6 +283,8 @@
           Quagga.stop();
           quaggaScanner = null;
           scannerContainer.style.display = "none";
+          debugInfo.style.display = "none";
+          debugCanvas.style.display = "none";
           updateScannerStatus("");
         } catch (e) {
           console.error("Error stopping scanner:", e);
@@ -194,10 +292,28 @@
         return;
       }
 
+      // Check if at least one format is selected
+      const selectedFormats = getSelectedFormats();
+      if (selectedFormats.length === 0) {
+        alert("Please select at least one barcode format.");
+        return;
+      }
+
       // Show scanner and loading indicator
       scannerContainer.style.display = "block";
       loadingEl.style.display = "block";
       updateScannerStatus("Initializing scanner...");
+
+      // Show debug info if debug mode is checked
+      if (document.getElementById("debug-mode").checked) {
+        debugInfo.style.display = "block";
+        debugCanvas.style.display = "block";
+        debugInfo.innerHTML = "";
+      }
+
+      // Reset scan attempts and previous results
+      scanAttempts = 0;
+      previousResults = [];
 
       try {
         await initQuagga();
@@ -214,6 +330,9 @@
 
     function initQuagga() {
       return new Promise((resolve, reject) => {
+        const selectedFormats = getSelectedFormats();
+        debugLog(`Initializing scanner with formats: ${selectedFormats.join(', ')}`);
+
         Quagga.init({
           inputStream: {
             name: "Live",
@@ -221,35 +340,29 @@
             target: document.querySelector("#interactive"),
             constraints: {
               facingMode: "environment", // Use the back camera
+              width: { min: 640 },
+              height: { min: 480 },
+              aspectRatio: { min: 1, max: 2 }
             },
-            area: { // Only read barcodes in the center of the video stream
-              top: "25%",
+            area: { // Define a slightly larger scanning area
+              top: "15%",
               right: "10%",
               left: "10%",
-              bottom: "25%",
-            },
-          },
-          decoder: {
-            readers: [
-              "code_128_reader",
-              "ean_reader",
-              "ean_8_reader",
-              "code_39_reader",
-              "code_93_reader",
-              "upc_reader",
-              "upc_e_reader"
-            ],
-            debug: {
-              drawBoundingBox: true,
-              showFrequency: false,
-              drawScanline: true,
-              showPattern: false
-            },
-            multiple: false
+              bottom: "15%"
+            }
           },
           locator: {
             patchSize: "medium",
             halfSample: true
+          },
+          numOfWorkers: 2,
+          frequency: 10,
+          decoder: {
+            readers: selectedFormats.map(format => ({
+              format: format,
+              config: {}
+            })),
+            multiple: false
           },
           locate: true
         }, function(err) {
@@ -260,6 +373,40 @@
 
           quaggaScanner = true;
 
+          // Debug visualizer
+          if (document.getElementById("debug-mode").checked) {
+            Quagga.onProcessed(function(result) {
+              var drawingCtx = Quagga.canvas.ctx.overlay,
+                  drawingCanvas = Quagga.canvas.dom.overlay;
+
+              if (result) {
+                if (result.boxes) {
+                  drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                  result.boxes.filter(function (box) {
+                      return box !== result.box;
+                  }).forEach(function (box) {
+                      Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
+                  });
+                }
+
+                if (result.box) {
+                  Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
+                }
+
+                if (result.codeResult && result.codeResult.code) {
+                  Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
+
+                  // Clone debug canvas to our visible debug canvas
+                  const debugCanvas = document.getElementById("debug-canvas");
+                  const context = debugCanvas.getContext("2d");
+                  debugCanvas.width = drawingCanvas.width;
+                  debugCanvas.height = drawingCanvas.height;
+                  context.drawImage(drawingCanvas, 0, 0);
+                }
+              }
+            });
+          }
+
           Quagga.start();
           resolve();
 
@@ -267,18 +414,64 @@
           Quagga.onDetected(function(result) {
             if (result && result.codeResult) {
               const code = result.codeResult.code;
-              console.log("Barcode detected:", code);
-              updateScannerStatus("Barcode detected: " + code);
+              const format = result.codeResult.format;
+              debugLog(`Detected ${format} code: ${code} (confidence: ${result.codeResult.confidence.toFixed(2)})`);
 
-              // Fill the barcode input and trigger autofill
-              document.getElementById("barcode").value = code;
-              autoFillFromKnownCodes();
+              // Only consider results with confidence above 0.65
+              if (result.codeResult.confidence > 0.65) {
+                scanAttempts++;
+                previousResults.push(code);
 
-              // Stop scanner
-              Quagga.stop();
-              quaggaScanner = null;
-              document.getElementById("scanner-container").style.display = "none";
-              updateScannerStatus("");
+                // Check if we have a consensus (multiple identical results)
+                const resultCounts = {};
+                let maxCount = 0;
+                let mostFrequentCode = null;
+
+                for (const res of previousResults) {
+                  resultCounts[res] = (resultCounts[res] || 0) + 1;
+                  if (resultCounts[res] > maxCount) {
+                    maxCount = resultCounts[res];
+                    mostFrequentCode = res;
+                  }
+                }
+
+                // Update status with current scan attempt info
+                updateScannerStatus(`Scanning... (${scanAttempts}/${MAX_SCAN_ATTEMPTS})`);
+
+                // If we have enough matches for a code or reached max attempts
+                if (maxCount >= REQUIRED_MATCHES || scanAttempts >= MAX_SCAN_ATTEMPTS) {
+                  if (mostFrequentCode) {
+                    // We have a reliable result
+                    debugLog(`Selected code: ${mostFrequentCode} (detected ${maxCount} times)`);
+                    updateScannerStatus(`Barcode detected: ${mostFrequentCode}`);
+
+                    // Fill the barcode input and trigger autofill
+                    document.getElementById("barcode").value = mostFrequentCode;
+                    autoFillFromKnownCodes();
+
+                    // Stop scanner
+                    Quagga.stop();
+                    quaggaScanner = null;
+                    document.getElementById("scanner-container").style.display = "none";
+                    if (!document.getElementById("debug-mode").checked) {
+                      document.getElementById("debug-info").style.display = "none";
+                      document.getElementById("debug-canvas").style.display = "none";
+                    }
+                  } else {
+                    // No reliable result after max attempts
+                    updateScannerStatus("Could not detect a reliable barcode. Please try again.");
+
+                    // Stop scanner
+                    Quagga.stop();
+                    quaggaScanner = null;
+                    document.getElementById("scanner-container").style.display = "none";
+                    if (!document.getElementById("debug-mode").checked) {
+                      document.getElementById("debug-info").style.display = "none";
+                      document.getElementById("debug-canvas").style.display = "none";
+                    }
+                  }
+                }
+              }
             }
           });
         });
@@ -303,6 +496,17 @@
     function clearForm() {
       const form = document.getElementById("add-form");
       form.reset();
+
+      // Restore default format checkbox selections
+      document.querySelectorAll('.format-checkbox').forEach(checkbox => {
+        if (['code_128_reader', 'ean_reader', 'ean_8_reader', 'code_39_reader',
+            'code_93_reader', 'upc_reader', 'upc_e_reader'].includes(checkbox.value)) {
+          checkbox.checked = true;
+        } else {
+          checkbox.checked = false;
+        }
+      });
+
       document.getElementById("barcode").focus();
     }
 
@@ -315,6 +519,21 @@
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
         alert("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
       }
+
+      // Initialize debug checkbox
+      const debugMode = document.getElementById("debug-mode");
+      debugMode.addEventListener("change", function() {
+        const debugInfo = document.getElementById("debug-info");
+        const debugCanvas = document.getElementById("debug-canvas");
+
+        if (this.checked) {
+          debugInfo.style.display = "block";
+          debugCanvas.style.display = "block";
+        } else {
+          debugInfo.style.display = "none";
+          debugCanvas.style.display = "none";
+        }
+      });
     });
   </script>
 </body>
