@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@10.0.2/dist/dbr.bundle.js"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -14,7 +14,6 @@
     input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
     button { background-color: #007bff; color: #fff; border: none; padding: 12px; margin-top: 20px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
     button:hover { background-color: #0056b3; }
-    .scanner-buttons { display: flex; gap: 10px; margin-top: 10px; }
     #scanner { width: 100%; max-width: 500px; margin: 20px auto; display: none; }
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
     th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
@@ -106,50 +105,48 @@
   {% endif %}
 
   <script>
-  window.addEventListener("DOMContentLoaded", async () => {
-    if (typeof Dynamsoft === "undefined" || !Dynamsoft.DBR) {
-      console.error("❌ Dynamsoft SDK not loaded.");
-      alert("Scanner script failed to load. Please check your internet connection or try refreshing.");
-      return;
-    }
+    let html5QrcodeScanner = null;
 
-    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTAzOTc5ODUxLVRYbFhaV0pRY205cSIsIm1haW5TZXJ2ZXJVUkwiOiJodHRwczovL21kbHMuZHluYW1zb2Z0b25saW5lLmNvbSIsIm9yZ2FuaXphdGlvbklEIjoiMTAzOTc5ODUxIiwic3RhbmRieVNlcnZlclVSTCI6Imh0dHBzOi8vc2Rscy5keW5hbXNvZnRvbmxpbmUuY29tIiwiY2hlY2tDb2RlIjotMjAyODM2OTIzNn0=";
-
-    let scannerInstance = null;
-
-    window.toggleScanner = async function () {
+    async function toggleScanner() {
       const scannerEl = document.getElementById("scanner");
-      if (scannerInstance && scannerEl.style.display === "block") {
-        await scannerInstance.hide();
-        scannerEl.style.display = "none";
+
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear().then(() => {
+          scannerEl.style.display = "none";
+          html5QrcodeScanner = null;
+        });
         return;
       }
 
-      try {
-        scannerEl.style.display = "block";
-        if (!scannerInstance) {
-          await Dynamsoft.DBR.BarcodeScanner.loadWasm();
-          scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-          await scannerInstance.updateVideoSettings({ video: { facingMode: "environment" } });
-          await scannerInstance.setUIElement(scannerEl);
-          scannerInstance.onFrameRead = results => {
-            if (results.length > 0) {
-              const code = results[0].barcodeText;
-              document.getElementById("barcode").value = code;
-              autoFillFromKnownCodes();
-              scannerInstance.hide();
-              scannerEl.style.display = "none";
-            }
-          };
-        }
-        await scannerInstance.show();
-      } catch (error) {
-        console.error("Scanner failed to start:", error);
-        alert("Scanner failed to start. See console for details.");
-      }
-    };
+      scannerEl.style.display = "block";
+      html5QrcodeScanner = new Html5Qrcode("scanner");
 
-    window.autoFillFromKnownCodes = async function () {
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          const cameraId = devices[0].id;
+          html5QrcodeScanner.start(
+            cameraId,
+            { fps: 10, qrbox: 250 },
+            (decodedText, decodedResult) => {
+              document.getElementById("barcode").value = decodedText;
+              autoFillFromKnownCodes();
+              html5QrcodeScanner.stop().then(() => {
+                scannerEl.style.display = "none";
+                html5QrcodeScanner = null;
+              });
+            }
+          ).catch(err => {
+            console.error("Error starting scanner:", err);
+            alert("Camera failed to start.");
+          });
+        }
+      }).catch(err => {
+        alert("No camera found or permission denied.");
+        console.error(err);
+      });
+    }
+
+    async function autoFillFromKnownCodes() {
       const barcode = document.getElementById("barcode").value;
       if (barcode.length < 4) return;
       try {
@@ -162,18 +159,17 @@
       } catch (err) {
         console.error("Auto-fill error:", err);
       }
-    };
+    }
 
-    window.clearForm = function () {
+    function clearForm() {
       const form = document.getElementById("add-form");
       form.reset();
       document.getElementById("barcode").focus();
-    };
+    }
 
     document.getElementById("add-form").addEventListener("submit", function () {
       setTimeout(() => clearForm(), 200);
     });
-  });
-</script>
+  </script>
 </body>
 </html>
