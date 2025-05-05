@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <!-- Using ZXing library which is more reliable for various barcode formats -->
+  <script src="https://unpkg.com/@zxing/library@0.19.1"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -27,33 +28,58 @@
       background-color: #000;
     }
 
-    #interactive.viewport {
+    #scanner-video {
       width: 100%;
       height: 100%;
-      position: relative;
+      object-fit: cover;
     }
 
-    #interactive.viewport > canvas, #interactive.viewport > video {
-      max-width: 100%;
-      width: 100%;
-    }
-
-    .drawingBuffer {
+    #scanner-canvas {
       position: absolute;
       top: 0;
       left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .scan-region-highlight {
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      position: absolute;
+      top: 25%;
+      left: 25%;
+      width: 50%;
+      height: 25%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .scan-region-highlight-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .code-outline {
+      position: absolute;
+      border: 3px solid #00ff00;
+      background: rgba(0, 255, 0, 0.2);
+      pointer-events: none;
+      z-index: 1000;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
     }
 
     #scanner-status { text-align: center; margin-top: 10px; color: #666; }
-    #scanner-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.3);
-      z-index: 10;
-    }
     #scanner-loading {
       display: none;
       position: absolute;
@@ -65,54 +91,6 @@
       padding: 10px 20px;
       border-radius: 20px;
       z-index: 20;
-    }
-
-    #debug-canvas {
-      display: none;
-      width: 100%;
-      max-width: 500px;
-      margin: 10px auto;
-      border: 1px solid #ccc;
-    }
-
-    #debug-info {
-      font-family: monospace;
-      font-size: 12px;
-      padding: 10px;
-      background: #f0f0f0;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      margin-top: 10px;
-      max-height: 150px;
-      overflow-y: auto;
-      display: none;
-    }
-
-    .detected-barcode {
-      border: 2px solid #00ff00;
-      background: rgba(0, 255, 0, 0.2);
-      position: absolute;
-      z-index: 20;
-    }
-
-    .format-selector {
-      margin-top: 10px;
-      padding: 10px;
-      background: #f8f9fa;
-      border-radius: 6px;
-      border: 1px solid #eee;
-    }
-
-    .format-selector label {
-      font-weight: normal;
-      display: inline-block;
-      margin-right: 10px;
-      margin-top: 5px;
-    }
-
-    .format-selector input[type="checkbox"] {
-      width: auto;
-      margin-right: 5px;
     }
 
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -145,36 +123,16 @@
     </div>
 
     <div id="scanner-container">
-      <div id="interactive" class="viewport"></div>
+      <video id="scanner-video" playsinline></video>
+      <canvas id="scanner-canvas"></canvas>
+      <div class="scan-region-highlight">
+        <svg class="scan-region-highlight-svg">
+          <rect x="0" y="0" width="100%" height="100%" rx="5"></rect>
+        </svg>
+      </div>
       <div id="scanner-loading">Loading camera...</div>
     </div>
     <div id="scanner-status"></div>
-
-    <div id="debug-info"></div>
-    <canvas id="debug-canvas"></canvas>
-
-    <div class="format-selector">
-      <h4 style="margin-top: 0;">Barcode Formats:</h4>
-      <div style="display: flex; flex-wrap: wrap;">
-        <label><input type="checkbox" class="format-checkbox" value="code_128_reader" checked> Code 128</label>
-        <label><input type="checkbox" class="format-checkbox" value="ean_reader" checked> EAN</label>
-        <label><input type="checkbox" class="format-checkbox" value="ean_8_reader" checked> EAN-8</label>
-        <label><input type="checkbox" class="format-checkbox" value="code_39_reader" checked> Code 39</label>
-        <label><input type="checkbox" class="format-checkbox" value="code_93_reader" checked> Code 93</label>
-        <label><input type="checkbox" class="format-checkbox" value="upc_reader" checked> UPC</label>
-        <label><input type="checkbox" class="format-checkbox" value="upc_e_reader" checked> UPC-E</label>
-        <label><input type="checkbox" class="format-checkbox" value="i2of5_reader"> Interleaved 2 of 5</label>
-        <label><input type="checkbox" class="format-checkbox" value="2of5_reader"> Standard 2 of 5</label>
-        <label><input type="checkbox" class="format-checkbox" value="codabar_reader"> Codabar</label>
-      </div>
-    </div>
-
-    <div style="margin-top: 10px;">
-      <label for="debug-mode" style="display: inline-block; font-weight: normal;">
-        <input type="checkbox" id="debug-mode" style="width: auto; margin-right: 5px;">
-        Debug Mode
-      </label>
-    </div>
 
     <label for="type">Type:</label>
     <select name="type" id="type">
@@ -242,11 +200,9 @@
   {% endif %}
 
   <script>
-    let quaggaScanner = null;
-    let scanAttempts = 0;
-    let previousResults = [];
-    const MAX_SCAN_ATTEMPTS = 15;
-    const REQUIRED_MATCHES = 3; // Number of matching results required
+    let codeReader = null;
+    let selectedDeviceId = null;
+    let scanning = false;
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -255,47 +211,13 @@
       }
     }
 
-    function debugLog(message) {
-      const debugInfo = document.getElementById("debug-info");
-      if (debugInfo && document.getElementById("debug-mode").checked) {
-        const entry = document.createElement("div");
-        entry.textContent = message;
-        debugInfo.appendChild(entry);
-        debugInfo.scrollTop = debugInfo.scrollHeight;
-      }
-    }
-
-    // Get selected barcode formats
-    function getSelectedFormats() {
-      const checkboxes = document.querySelectorAll('.format-checkbox:checked');
-      return Array.from(checkboxes).map(cb => cb.value);
-    }
-
     async function toggleScanner() {
       const scannerContainer = document.getElementById("scanner-container");
       const loadingEl = document.getElementById("scanner-loading");
-      const debugInfo = document.getElementById("debug-info");
-      const debugCanvas = document.getElementById("debug-canvas");
 
-      // If scanner is active, stop it
-      if (quaggaScanner) {
-        try {
-          Quagga.stop();
-          quaggaScanner = null;
-          scannerContainer.style.display = "none";
-          debugInfo.style.display = "none";
-          debugCanvas.style.display = "none";
-          updateScannerStatus("");
-        } catch (e) {
-          console.error("Error stopping scanner:", e);
-        }
-        return;
-      }
-
-      // Check if at least one format is selected
-      const selectedFormats = getSelectedFormats();
-      if (selectedFormats.length === 0) {
-        alert("Please select at least one barcode format.");
+      // If already scanning, stop it
+      if (scanning) {
+        stopScanner();
         return;
       }
 
@@ -304,19 +226,8 @@
       loadingEl.style.display = "block";
       updateScannerStatus("Initializing scanner...");
 
-      // Show debug info if debug mode is checked
-      if (document.getElementById("debug-mode").checked) {
-        debugInfo.style.display = "block";
-        debugCanvas.style.display = "block";
-        debugInfo.innerHTML = "";
-      }
-
-      // Reset scan attempts and previous results
-      scanAttempts = 0;
-      previousResults = [];
-
       try {
-        await initQuagga();
+        await initScanner();
         loadingEl.style.display = "none";
         updateScannerStatus("Camera ready. Point at a barcode to scan.");
       } catch (error) {
@@ -328,154 +239,145 @@
       }
     }
 
-    function initQuagga() {
-      return new Promise((resolve, reject) => {
-        const selectedFormats = getSelectedFormats();
-        debugLog(`Initializing scanner with formats: ${selectedFormats.join(', ')}`);
+    async function initScanner() {
+      // Create the code reader
+      codeReader = new ZXing.BrowserMultiFormatReader();
 
-        Quagga.init({
-          inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.querySelector("#interactive"),
-            constraints: {
-              facingMode: "environment", // Use the back camera
-              width: { min: 640 },
-              height: { min: 480 },
-              aspectRatio: { min: 1, max: 2 }
-            },
-            area: { // Define a slightly larger scanning area
-              top: "15%",
-              right: "10%",
-              left: "10%",
-              bottom: "15%"
-            }
-          },
-          locator: {
-            patchSize: "medium",
-            halfSample: true
-          },
-          numOfWorkers: 2,
-          frequency: 10,
-          decoder: {
-            readers: selectedFormats.map(format => ({
-              format: format,
-              config: {}
-            })),
-            multiple: false
-          },
-          locate: true
-        }, function(err) {
-          if (err) {
-            reject(err);
-            return;
-          }
+      try {
+        // Try to get the list of video devices
+        const videoInputDevices = await codeReader.listVideoInputDevices();
+        console.log('Video input devices:');
+        videoInputDevices.forEach(device =>
+          console.log(`${device.label}, ${device.deviceId}`)
+        );
 
-          quaggaScanner = true;
+        // Select the back camera if available
+        selectedDeviceId = videoInputDevices.find(device =>
+          device.label.toLowerCase().includes('back') ||
+          device.label.toLowerCase().includes('rear')
+        )?.deviceId || (videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : null);
 
-          // Debug visualizer
-          if (document.getElementById("debug-mode").checked) {
-            Quagga.onProcessed(function(result) {
-              var drawingCtx = Quagga.canvas.ctx.overlay,
-                  drawingCanvas = Quagga.canvas.dom.overlay;
+        if (!selectedDeviceId) {
+          throw new Error("No camera found");
+        }
 
-              if (result) {
-                if (result.boxes) {
-                  drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
-                  result.boxes.filter(function (box) {
-                      return box !== result.box;
-                  }).forEach(function (box) {
-                      Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "green", lineWidth: 2});
-                  });
-                }
+        const videoElement = document.getElementById('scanner-video');
 
-                if (result.box) {
-                  Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00F", lineWidth: 2});
-                }
+        // Start scanning
+        scanning = true;
 
-                if (result.codeResult && result.codeResult.code) {
-                  Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: 'red', lineWidth: 3});
+        // Decode continuously from the selected camera
+        await codeReader.decodeFromVideoDevice(
+          selectedDeviceId,
+          videoElement,
+          (result, error) => {
+            if (result) {
+              console.log("Barcode detected:", result.getText());
 
-                  // Clone debug canvas to our visible debug canvas
-                  const debugCanvas = document.getElementById("debug-canvas");
-                  const context = debugCanvas.getContext("2d");
-                  debugCanvas.width = drawingCanvas.width;
-                  debugCanvas.height = drawingCanvas.height;
-                  context.drawImage(drawingCanvas, 0, 0);
-                }
-              }
-            });
-          }
+              // Show outline around the detected barcode
+              highlightDetectedCode(result);
 
-          Quagga.start();
-          resolve();
+              // Update status
+              updateScannerStatus("Barcode detected: " + result.getText());
 
-          // Register callback for successful detection
-          Quagga.onDetected(function(result) {
-            if (result && result.codeResult) {
-              const code = result.codeResult.code;
-              const format = result.codeResult.format;
-              debugLog(`Detected ${format} code: ${code} (confidence: ${result.codeResult.confidence.toFixed(2)})`);
+              // Update barcode input
+              document.getElementById("barcode").value = result.getText();
 
-              // Only consider results with confidence above 0.65
-              if (result.codeResult.confidence > 0.65) {
-                scanAttempts++;
-                previousResults.push(code);
+              // Trigger autofill
+              autoFillFromKnownCodes();
 
-                // Check if we have a consensus (multiple identical results)
-                const resultCounts = {};
-                let maxCount = 0;
-                let mostFrequentCode = null;
+              // Stop scanning after successful detection
+              setTimeout(() => {
+                stopScanner();
+              }, 1000); // Wait a second to show the result before stopping
 
-                for (const res of previousResults) {
-                  resultCounts[res] = (resultCounts[res] || 0) + 1;
-                  if (resultCounts[res] > maxCount) {
-                    maxCount = resultCounts[res];
-                    mostFrequentCode = res;
-                  }
-                }
-
-                // Update status with current scan attempt info
-                updateScannerStatus(`Scanning... (${scanAttempts}/${MAX_SCAN_ATTEMPTS})`);
-
-                // If we have enough matches for a code or reached max attempts
-                if (maxCount >= REQUIRED_MATCHES || scanAttempts >= MAX_SCAN_ATTEMPTS) {
-                  if (mostFrequentCode) {
-                    // We have a reliable result
-                    debugLog(`Selected code: ${mostFrequentCode} (detected ${maxCount} times)`);
-                    updateScannerStatus(`Barcode detected: ${mostFrequentCode}`);
-
-                    // Fill the barcode input and trigger autofill
-                    document.getElementById("barcode").value = mostFrequentCode;
-                    autoFillFromKnownCodes();
-
-                    // Stop scanner
-                    Quagga.stop();
-                    quaggaScanner = null;
-                    document.getElementById("scanner-container").style.display = "none";
-                    if (!document.getElementById("debug-mode").checked) {
-                      document.getElementById("debug-info").style.display = "none";
-                      document.getElementById("debug-canvas").style.display = "none";
-                    }
-                  } else {
-                    // No reliable result after max attempts
-                    updateScannerStatus("Could not detect a reliable barcode. Please try again.");
-
-                    // Stop scanner
-                    Quagga.stop();
-                    quaggaScanner = null;
-                    document.getElementById("scanner-container").style.display = "none";
-                    if (!document.getElementById("debug-mode").checked) {
-                      document.getElementById("debug-info").style.display = "none";
-                      document.getElementById("debug-canvas").style.display = "none";
-                    }
-                  }
-                }
+            } else if (error) {
+              // Only log specific types of errors, ignore frequent scanning errors
+              if (error instanceof ZXing.NotFoundException) {
+                // This is normal, just searching for a barcode
+              } else {
+                console.error("Scanning error:", error);
               }
             }
+          }
+        );
+
+      } catch (error) {
+        scanning = false;
+        throw error;
+      }
+    }
+
+    function highlightDetectedCode(result) {
+      try {
+        // Remove any existing outlines
+        const existingOutlines = document.querySelectorAll('.code-outline');
+        existingOutlines.forEach(el => el.remove());
+
+        // Get location points of the detected code
+        if (result.getResultPoints && result.getResultPoints().length >= 2) {
+          const points = result.getResultPoints();
+
+          // Calculate the bounding box
+          let minX = Number.MAX_VALUE;
+          let minY = Number.MAX_VALUE;
+          let maxX = 0;
+          let maxY = 0;
+
+          points.forEach(point => {
+            minX = Math.min(minX, point.getX());
+            minY = Math.min(minY, point.getY());
+            maxX = Math.max(maxX, point.getX());
+            maxY = Math.max(maxY, point.getY());
           });
-        });
-      });
+
+          // Create outline element
+          const outline = document.createElement('div');
+          outline.className = 'code-outline';
+
+          // Get video element dimensions
+          const videoElement = document.getElementById('scanner-video');
+          const videoWidth = videoElement.videoWidth;
+          const videoHeight = videoElement.videoHeight;
+          const containerWidth = videoElement.offsetWidth;
+          const containerHeight = videoElement.offsetHeight;
+
+          // Scale coordinates to match the displayed video size
+          const scaleX = containerWidth / videoWidth;
+          const scaleY = containerHeight / videoHeight;
+
+          // Set the position and size
+          outline.style.left = `${minX * scaleX}px`;
+          outline.style.top = `${minY * scaleY}px`;
+          outline.style.width = `${(maxX - minX) * scaleX}px`;
+          outline.style.height = `${(maxY - minY) * scaleY}px`;
+
+          // Add the outline to the container
+          document.getElementById('scanner-container').appendChild(outline);
+        }
+      } catch (e) {
+        console.error("Error highlighting code:", e);
+        // Non-critical, so just log the error
+      }
+    }
+
+    function stopScanner() {
+      if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
+      }
+
+      // Hide the scanner container
+      document.getElementById("scanner-container").style.display = "none";
+
+      // Remove any outlines
+      const existingOutlines = document.querySelectorAll('.code-outline');
+      existingOutlines.forEach(el => el.remove());
+
+      // Update status
+      updateScannerStatus("");
+
+      scanning = false;
     }
 
     async function autoFillFromKnownCodes() {
@@ -496,17 +398,6 @@
     function clearForm() {
       const form = document.getElementById("add-form");
       form.reset();
-
-      // Restore default format checkbox selections
-      document.querySelectorAll('.format-checkbox').forEach(checkbox => {
-        if (['code_128_reader', 'ean_reader', 'ean_8_reader', 'code_39_reader',
-            'code_93_reader', 'upc_reader', 'upc_e_reader'].includes(checkbox.value)) {
-          checkbox.checked = true;
-        } else {
-          checkbox.checked = false;
-        }
-      });
-
       document.getElementById("barcode").focus();
     }
 
@@ -519,21 +410,6 @@
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
         alert("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
       }
-
-      // Initialize debug checkbox
-      const debugMode = document.getElementById("debug-mode");
-      debugMode.addEventListener("change", function() {
-        const debugInfo = document.getElementById("debug-info");
-        const debugCanvas = document.getElementById("debug-canvas");
-
-        if (this.checked) {
-          debugInfo.style.display = "block";
-          debugCanvas.style.display = "block";
-        } else {
-          debugInfo.style.display = "none";
-          debugCanvas.style.display = "none";
-        }
-      });
     });
   </script>
 </body>
