@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🔑 Locksmith Inventory</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Include jsQR library -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <!-- Использование специализированной библиотеки для Linear штрих-кодов (Code128, EAN, UPC и др.) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.2/dist/quagga.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #f9f9f9; margin: 0; padding: 0; }
     h2 { text-align: center; padding: 20px; font-size: 24px; }
@@ -27,31 +27,37 @@
       overflow: hidden;
     }
 
-    #video {
+    #interactive.viewport {
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      background-color: #000;
+      position: relative;
     }
 
-    #canvas {
-      display: none;
+    #interactive.viewport > canvas, #interactive.viewport > video {
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .drawingBuffer {
+      position: absolute;
+      top: 0;
+      left: 0;
     }
 
     .scan-region {
       position: absolute;
-      left: 25%;
+      left: 15%;
       top: 25%;
-      width: 50%;
-      height: 25%;
-      border: 2px solid rgba(255, 255, 255, 0.5);
+      width: 70%;
+      height: 35%;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 10px;
       box-sizing: border-box;
       pointer-events: none;
-    }
-
-    #fallback-file-input {
-      display: none;
-      margin-top: 20px;
     }
 
     #scanner-status {
@@ -74,6 +80,78 @@
     .scanner-controls button {
       width: 48%;
       margin-top: 10px;
+    }
+
+    /* Fallback file input for when camera access fails */
+    #file-input-container {
+      display: none;
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+
+    /* Loading indicator */
+    .loader {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #007bff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-top: -20px;
+      margin-left: -20px;
+      display: none;
+      z-index: 100;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Результаты сканирования */
+    #scan-results {
+      margin-top: 15px;
+      display: none;
+      padding: 15px;
+      background-color: #e9f7fe;
+      border-radius: 6px;
+      border: 1px solid #bee5eb;
+    }
+
+    .result-item {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #bee5eb;
+    }
+
+    .result-code {
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
+    .result-type {
+      font-size: 0.9em;
+      color: #6c757d;
+    }
+
+    .result-use {
+      margin-top: 5px;
+    }
+
+    .use-btn {
+      background-color: #28a745;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 5px;
     }
 
     table { width: 95%; margin: 20px auto; border-collapse: collapse; background-color: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
@@ -106,9 +184,10 @@
     </div>
 
     <div id="scanner-container">
-      <video id="video" playsinline autoplay></video>
-      <canvas id="canvas" style="display:none;"></canvas>
-      <div class="scan-region"></div>
+      <div id="interactive" class="viewport">
+        <div class="scan-region"></div>
+      </div>
+      <div class="loader" id="scanner-loader"></div>
 
       <div class="scanner-controls">
         <button type="button" onclick="toggleCamera()" style="background-color: #6c757d;">Switch Camera</button>
@@ -116,7 +195,9 @@
       </div>
     </div>
 
-    <div id="fallback-file-input">
+    <div id="scan-results"></div>
+
+    <div id="file-input-container">
       <label for="barcode-image">Upload an image with a barcode:</label>
       <input type="file" id="barcode-image" accept="image/*" capture="environment" onChange="processImageFile(this)">
     </div>
@@ -189,10 +270,9 @@
   {% endif %}
 
   <script>
-    let videoStream = null;
-    let isScanning = false;
-    let scanInterval = null;
     let currentCamera = 'environment'; // 'environment' = back camera, 'user' = front camera
+    let scannerStarted = false;
+    let detectedBarcodes = [];
 
     function updateScannerStatus(message) {
       const statusEl = document.getElementById("scanner-status");
@@ -202,210 +282,305 @@
       }
     }
 
-    async function startScanner() {
-      // Show the scanner container
-      document.getElementById('scanner-container').style.display = 'block';
-      updateScannerStatus("Initializing camera...");
+    function showLoader(show) {
+      document.getElementById('scanner-loader').style.display = show ? 'block' : 'none';
+    }
 
-      try {
-        // Access the camera
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: currentCamera,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+    // Специализированная конфигурация для распознавания только линейных штрих-кодов
+    const quaggaConfig = {
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector("#interactive"),
+        constraints: {
+          facingMode: currentCamera,
+          aspectRatio: { min: 1, max: 2 }
+        },
+        area: { // Уменьшаем область поиска для улучшения точности
+          top: "25%",
+          right: "10%",
+          left: "10%",
+          bottom: "50%"
+        }
+      },
+      locator: {
+        patchSize: "medium",
+        halfSample: true
+      },
+      decoder: {
+        readers: [
+          "code_128_reader",
+          "ean_reader",
+          "ean_8_reader",
+          "code_39_reader",
+          "code_39_vin_reader",
+          "codabar_reader",
+          "upc_reader",
+          "upc_e_reader",
+          "i2of5_reader"
+        ],
+        multiple: false
+      },
+      locate: true,
+      frequency: 10
+    };
+
+    function startScanner() {
+      if (scannerStarted) {
+        stopScanner();
+        return;
+      }
+
+      // Очистить предыдущие результаты
+      detectedBarcodes = [];
+      document.getElementById('scan-results').style.display = 'none';
+      document.getElementById('scan-results').innerHTML = '';
+
+      // Показать контейнер сканера и индикатор загрузки
+      document.getElementById('scanner-container').style.display = 'block';
+      showLoader(true);
+      updateScannerStatus("Initializing scanner...");
+
+      // Установим текущую камеру в конфигурации
+      quaggaConfig.inputStream.constraints.facingMode = currentCamera;
+
+      // Инициализируем Quagga2
+      Quagga.init(quaggaConfig, function(err) {
+        showLoader(false);
+
+        if (err) {
+          console.error("Ошибка инициализации Quagga:", err);
+          updateScannerStatus("Error initializing scanner. Try the file upload option.");
+          document.getElementById('file-input-container').style.display = 'block';
+          document.getElementById('scanner-container').style.display = 'none';
+          return;
+        }
+
+        // Запустить сканер
+        scannerStarted = true;
+        Quagga.start();
+        updateScannerStatus("Camera ready. Point at a barcode to scan.");
+
+        // Обработчик обнаружения штрих-кода
+        Quagga.onDetected(function(result) {
+          if (!result || !result.codeResult) return;
+
+          // Проверка на достаточную уверенность в результате
+          if (result.codeResult.confidence < 0.75) {
+            console.log("Низкая уверенность в результате:", result.codeResult.code, result.codeResult.confidence);
+            return;
+          }
+
+          // Проверить, что это не ссылка или другой текст, а действительно штрих-код
+          const code = result.codeResult.code;
+          if (code.startsWith('http') || code.length > 30) {
+            console.log("Пропускаем web-ссылку:", code);
+            return;
+          }
+
+          // Визуализация найденного штрих-кода (мигание области)
+          if (result.box) {
+            const drawingCanvas = Quagga.canvas.dom.overlay;
+            const drawingCtx = Quagga.canvas.ctx.overlay;
+            drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+            Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00FF00", lineWidth: 4});
+
+            // Подсветка на короткое время, затем очистка
+            setTimeout(function() {
+              drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+            }, 500);
+          }
+
+          // Проверим, есть ли уже такой штрих-код в результатах
+          const exists = detectedBarcodes.some(item => item.code === code);
+          if (!exists) {
+            // Добавим новый результат
+            detectedBarcodes.push({
+              code: code,
+              type: result.codeResult.format,
+              confidence: result.codeResult.confidence
+            });
+
+            // Обновить отображение результатов
+            updateResultsDisplay();
           }
         });
 
-        // Set up video element
-        const videoElement = document.getElementById('video');
-        videoElement.srcObject = videoStream;
+        // Отладочная визуализация
+        Quagga.onProcessed(function(result) {
+          var drawingCanvas = Quagga.canvas.dom.overlay,
+              drawingCtx = Quagga.canvas.ctx.overlay;
 
-        // Setup canvas for processing video frames
-        const canvasElement = document.getElementById('canvas');
-        const canvas = canvasElement.getContext('2d');
-
-        // Start scanning when video is ready
-        videoElement.onloadedmetadata = () => {
-          // Set canvas size to match video
-          canvasElement.width = videoElement.videoWidth;
-          canvasElement.height = videoElement.videoHeight;
-
-          updateScannerStatus("Camera ready. Point at a barcode to scan.");
-          isScanning = true;
-          scanForCodes();
-        };
-
-      } catch (error) {
-        console.error("Error accessing camera:", error);
-        document.getElementById('scanner-container').style.display = 'none';
-        document.getElementById('fallback-file-input').style.display = 'block';
-        updateScannerStatus("Could not access camera. You can upload an image instead.");
-      }
-    }
-
-    function scanForCodes() {
-      if (!isScanning) return;
-
-      const videoElement = document.getElementById('video');
-      const canvasElement = document.getElementById('canvas');
-      const canvas = canvasElement.getContext('2d');
-
-      // Set up interval to scan video frames
-      scanInterval = setInterval(() => {
-        if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-          // Draw the video frame to the canvas
-          canvas.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-
-          // Get image data for processing
-          const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-
-          // Process the image data with jsQR
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert", // Try without inverting first
-          });
-
-          if (code) {
-            console.log("QR/Barcode found:", code.data);
-
-            // Stop scanning
-            stopScanner();
-
-            // Update barcode input
-            document.getElementById("barcode").value = code.data;
-            updateScannerStatus("Barcode detected: " + code.data);
-
-            // Try to auto-fill other fields
-            autoFillFromKnownCodes();
-          }
-        }
-      }, 100); // Scan every 100ms
-    }
-
-    async function toggleCamera() {
-      if (videoStream) {
-        // Stop current video stream
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-
-        // Clear scan interval if running
-        if (scanInterval) {
-          clearInterval(scanInterval);
-          scanInterval = null;
-        }
-
-        // Toggle camera type
-        currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
-
-        try {
-          // Start new video stream with toggled camera
-          videoStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: currentCamera,
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+          if (result) {
+            if (result.boxes) {
+              drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+              result.boxes.filter(function (box) {
+                return box !== result.box;
+              }).forEach(function (box) {
+                Quagga.ImageDebug.drawPath(box, {x: 0, y: 1}, drawingCtx, {color: "#FF0000", lineWidth: 2});
+              });
             }
-          });
 
-          // Update video element
-          const videoElement = document.getElementById('video');
-          videoElement.srcObject = videoStream;
+            if (result.box) {
+              Quagga.ImageDebug.drawPath(result.box, {x: 0, y: 1}, drawingCtx, {color: "#00FF00", lineWidth: 2});
+            }
 
-          // Set up canvas for processing video frames
-          const canvasElement = document.getElementById('canvas');
-          const canvas = canvasElement.getContext('2d');
+            if (result.codeResult && result.codeResult.code) {
+              Quagga.ImageDebug.drawPath(result.line, {x: 'x', y: 'y'}, drawingCtx, {color: "#00FF00", lineWidth: 3});
+            }
+          }
+        });
+      });
+    }
 
-          // Wait for video to be ready
-          videoElement.onloadedmetadata = () => {
-            // Set canvas size to match video
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
+    // Обновление отображения результатов сканирования
+    function updateResultsDisplay() {
+      const resultsContainer = document.getElementById('scan-results');
 
-            updateScannerStatus(`Using ${currentCamera === 'environment' ? 'back' : 'front'} camera. Point at a barcode to scan.`);
-            isScanning = true;
-            scanForCodes();
-          };
-        } catch (error) {
-          console.error("Error toggling camera:", error);
-          updateScannerStatus("Error switching camera.");
-        }
+      if (detectedBarcodes.length === 0) {
+        resultsContainer.style.display = 'none';
+        return;
+      }
+
+      resultsContainer.style.display = 'block';
+      resultsContainer.innerHTML = '<h3>Detected Barcodes:</h3>';
+
+      detectedBarcodes.forEach((barcode, index) => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'result-item';
+
+        resultItem.innerHTML = `
+          <div class="result-code">${barcode.code}</div>
+          <div class="result-type">Type: ${barcode.type}, Confidence: ${(barcode.confidence * 100).toFixed(1)}%</div>
+          <div class="result-use">
+            <button class="use-btn" onclick="useBarcode('${barcode.code}')">Use this code</button>
+          </div>
+        `;
+
+        resultsContainer.appendChild(resultItem);
+      });
+    }
+
+    // Использовать выбранный штрих-код
+    function useBarcode(code) {
+      document.getElementById("barcode").value = code;
+      autoFillFromKnownCodes();
+      stopScanner();
+      updateScannerStatus("Barcode selected: " + code);
+    }
+
+    // Переключение камеры
+    function toggleCamera() {
+      if (scannerStarted) {
+        // Остановить текущий сканер
+        Quagga.stop();
+        scannerStarted = false;
+
+        // Переключить камеру
+        currentCamera = currentCamera === 'environment' ? 'user' : 'environment';
+        quaggaConfig.inputStream.constraints.facingMode = currentCamera;
+
+        // Показать индикатор загрузки
+        showLoader(true);
+        updateScannerStatus("Switching camera...");
+
+        // Перезапустить с новой камерой
+        setTimeout(function() {
+          startScanner();
+        }, 500);
       }
     }
 
+    // Остановка сканера
     function stopScanner() {
-      // Clear scan interval
-      if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = null;
+      if (scannerStarted) {
+        Quagga.stop();
+        scannerStarted = false;
       }
 
-      // Stop video stream
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-      }
-
-      // Hide scanner container
+      // Скрыть контейнер сканера и индикатор загрузки
       document.getElementById('scanner-container').style.display = 'none';
-      isScanning = false;
+      showLoader(false);
     }
 
+    // Обработка загруженного изображения
     function processImageFile(input) {
       if (!input.files || !input.files[0]) return;
 
       updateScannerStatus("Processing image...");
+      showLoader(true);
 
       const file = input.files[0];
       const reader = new FileReader();
 
       reader.onload = function(e) {
-        // Create an image element to load the file
-        const img = new Image();
-        img.src = e.target.result;
+        const image = new Image();
+        image.src = e.target.result;
 
-        img.onload = function() {
-          // Create a canvas to draw the image
+        image.onload = function() {
+          // Создать временный canvas для обработки изображения
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
 
-          // Set canvas size to image size
-          canvas.width = img.width;
-          canvas.height = img.height;
+          // Установить размеры canvas равными размерам изображения
+          canvas.width = image.width;
+          canvas.height = image.height;
 
-          // Draw image to canvas
-          ctx.drawImage(img, 0, 0);
+          // Нарисовать изображение на canvas
+          ctx.drawImage(image, 0, 0, image.width, image.height);
 
-          // Get image data for processing
+          // Получить данные изображения
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-          // Try different attempts to read the barcode
-          // First try without inversion
-          let code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert"
+          // Настройка конфигурации Quagga для анализа изображения
+          const imageQuaggaConfig = {
+            ...quaggaConfig,
+            inputStream: {
+              ...quaggaConfig.inputStream,
+              type: "ImageStream",
+              size: image.width > image.height ? image.width : image.height
+            },
+            src: image.src
+          };
+
+          // Инициализация Quagga для анализа изображения
+          Quagga.decodeSingle(imageQuaggaConfig, function(result) {
+            showLoader(false);
+
+            if (result && result.codeResult) {
+              const code = result.codeResult.code;
+
+              // Проверить, что это не ссылка или другой текст, а действительно штрих-код
+              if (code.startsWith('http') || code.length > 30) {
+                updateScannerStatus("Detected URL, not a barcode. Please try another image.");
+                return;
+              }
+
+              // Добавить результат
+              detectedBarcodes.push({
+                code: code,
+                type: result.codeResult.format,
+                confidence: result.codeResult.confidence
+              });
+
+              // Обновить отображение результатов
+              updateResultsDisplay();
+              updateScannerStatus("Barcode detected: " + code);
+
+              // Автоматически использовать штрих-код
+              useBarcode(code);
+
+              // Скрыть контейнер файлового ввода
+              document.getElementById('file-input-container').style.display = 'none';
+            } else {
+              updateScannerStatus("No barcode detected in the image. Try another image or enter the barcode manually.");
+            }
           });
+        };
 
-          // If no code found, try with inversion
-          if (!code) {
-            code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: "invertFirst"
-            });
-          }
-
-          if (code) {
-            console.log("Barcode detected in image:", code.data);
-
-            // Update barcode input
-            document.getElementById("barcode").value = code.data;
-            updateScannerStatus("Barcode detected: " + code.data);
-
-            // Try to auto-fill other fields
-            autoFillFromKnownCodes();
-
-            // Hide file input
-            document.getElementById('fallback-file-input').style.display = 'none';
-          } else {
-            updateScannerStatus("No barcode detected in the image. Try another image or enter the barcode manually.");
-          }
+        image.onerror = function() {
+          showLoader(false);
+          updateScannerStatus("Error loading image. Please try another image.");
         };
       };
 
@@ -432,25 +607,22 @@
       form.reset();
       document.getElementById("barcode").focus();
       document.getElementById('scanner-container').style.display = 'none';
-      document.getElementById('fallback-file-input').style.display = 'none';
+      document.getElementById('scan-results').style.display = 'none';
+      document.getElementById('file-input-container').style.display = 'none';
+      showLoader(false);
       updateScannerStatus("");
+      detectedBarcodes = [];
     }
 
     document.getElementById("add-form").addEventListener("submit", function () {
       setTimeout(() => clearForm(), 200);
     });
 
-    // Check for camera access on page load
+    // Проверка необходимых возможностей браузера при загрузке
     document.addEventListener('DOMContentLoaded', function() {
-      // Check if running on HTTPS
+      // Проверка HTTPS
       if (window.location.protocol !== 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
         updateScannerStatus("Warning: Camera access requires HTTPS. Please use a secure connection for full functionality.");
-      }
-
-      // Check if jsQR is loaded
-      if (typeof jsQR !== 'function') {
-        console.error("jsQR library not loaded");
-        updateScannerStatus("Error: Barcode scanning library not loaded. Please check your internet connection.");
       }
     });
   </script>
