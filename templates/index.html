@@ -23,6 +23,7 @@
 </head>
 <body>
   <h2>🔑 Locksmith Inventory</h2>
+
   <form method="get" action="/">
     <div style="max-width: 500px; margin: auto; display: flex; gap: 10px; padding: 0 20px 20px;">
       <input type="text" name="search" placeholder="Search..." value="{{ search or '' }}" style="flex: 1; padding: 10px; font-size: 16px;" />
@@ -111,39 +112,50 @@
       const scannerEl = document.getElementById("scanner");
 
       if (html5QrcodeScanner) {
-        html5QrcodeScanner.clear().then(() => {
-          scannerEl.style.display = "none";
-          html5QrcodeScanner = null;
-        });
+        await html5QrcodeScanner.stop();
+        html5QrcodeScanner.clear();
+        html5QrcodeScanner = null;
+        scannerEl.style.display = "none";
         return;
       }
 
       scannerEl.style.display = "block";
       html5QrcodeScanner = new Html5Qrcode("scanner");
 
-      Html5Qrcode.getCameras().then(devices => {
+      try {
+        const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length) {
-          const cameraId = devices[0].id;
-          html5QrcodeScanner.start(
-            cameraId,
-            { fps: 10, qrbox: 250 },
-            (decodedText, decodedResult) => {
+          const backCamera = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+
+          await html5QrcodeScanner.start(
+            { deviceId: { exact: backCamera.id } },
+            {
+              fps: 10,
+              qrbox: 250,
+              formatsToSupport: [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.UPC_A
+              ]
+            },
+            (decodedText) => {
               document.getElementById("barcode").value = decodedText;
               autoFillFromKnownCodes();
               html5QrcodeScanner.stop().then(() => {
+                html5QrcodeScanner.clear();
                 scannerEl.style.display = "none";
                 html5QrcodeScanner = null;
               });
             }
-          ).catch(err => {
-            console.error("Error starting scanner:", err);
-            alert("Camera failed to start.");
-          });
+          );
+        } else {
+          alert("No cameras found.");
         }
-      }).catch(err => {
-        alert("No camera found or permission denied.");
-        console.error(err);
-      });
+      } catch (e) {
+        console.error("Camera access error:", e);
+        alert("Failed to start scanner.");
+      }
     }
 
     async function autoFillFromKnownCodes() {
